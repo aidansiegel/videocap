@@ -1,4 +1,7 @@
-# videocap
+# Videocap
+
+> **0.0.1 alpha.** The whole capture path runs end to end in its tests and demo, but this version hasn't yet
+> recorded a real tape on real hardware. Expect rough edges, and keep your tapes until you've checked the masters.
 
 **Unattended capture from analog video.** Plug a VCR, camcorder, LaserDisc player or any other composite or S-Video
 source into a USB capture stick on a Raspberry Pi (or any Linux machine), press play, and walk away. videocap records
@@ -60,7 +63,7 @@ NTSC and PAL, at standard definition.
 On Raspberry Pi OS (Bookworm or later), Debian or Ubuntu:
 
 ```bash
-git clone https://example.invalid/videocap.git && cd videocap
+git clone https://github.com/aidansiegel/videocap.git && cd videocap
 sudo ./install.sh
 sudo nano /etc/videocap/videocap.conf     # STANDARD, PROFILE, CARD_LABEL, and where captures go
 python3 -m videocap --check               # (from /opt/videocap) the settings in effect and what's plugged in
@@ -68,7 +71,7 @@ python3 -m videocap --check               # (from /opt/videocap) the settings in
 
 The web page is at `http://<the machine's name>.local/` from a phone or computer on the same network.
 
-<img src="docs/web-page.png" width="360" alt="The station's web page while recording: state, live picture, audio meter, item, elapsed time and damage counts">
+<img src="https://raw.githubusercontent.com/aidansiegel/videocap/main/docs/web-page.png" width="360" alt="The station's web page while recording: state, live picture, audio meter, item, elapsed time and damage counts">
 
 (Here recording ffmpeg's test pattern.)
 

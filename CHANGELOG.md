@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 (unreleased)
+## 0.0.1 alpha (2026-11-17)
 
 First version as a standalone project, generalized from a working single-station capture appliance that
 digitized a family's Hi8 and VHS collection in November 2026.

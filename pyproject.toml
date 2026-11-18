@@ -1,19 +1,26 @@
 [build-system]
-requires = ["setuptools>=61"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "videocap"
-version = "0.1.0"
+version = "0.0.1a1"
 description = "Unattended capture from analog video sources: lossless masters and MP4s, for whole collections"
 readme = "README.md"
 license = "GPL-3.0-or-later"
 requires-python = ">=3.9"
 classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3",
     "Operating System :: POSIX :: Linux",
     "Topic :: Multimedia :: Video :: Capture",
     "Environment :: No Input/Output (Daemon)",
 ]
+
+[project.urls]
+Homepage = "https://github.com/aidansiegel/videocap"
+Issues = "https://github.com/aidansiegel/videocap/issues"
+Changelog = "https://github.com/aidansiegel/videocap/blob/main/CHANGELOG.md"
 
 [project.scripts]
 videocap = "videocap.__main__:main"
