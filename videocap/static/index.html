@@ -423,7 +423,7 @@ let clockSkew=null,clockTz='';
 function tickClock(){if(clockSkew==null)return;const t=new Date(Date.now()+clockSkew);
  const f=o=>{try{return t.toLocaleString('en-US',Object.assign({timeZone:clockTz||undefined},o))}catch(e){return t.toLocaleString('en-US',o)}};
  $('clk-day').textContent=f({weekday:'short'});$('clk-date').textContent=f({month:'short',day:'numeric'});$('clk-year').textContent=', '+f({year:'numeric'});
- $('clk-time').textContent=f({hour:'numeric',minute:'2-digit'}).replace(/\s?([AP]M)/,' $1').toLowerCase();$('clock').hidden=false}
+ $('clk-time').textContent=f({hour:'numeric',minute:'2-digit'}).replace(/\s?([AP]M)/,' $1');$('clock').hidden=false}
 setInterval(tickClock,1000);
 // help, as an overlay; Esc or a click outside closes it
 $('helpbtn').onclick=()=>$('helpdlg').showModal();
