@@ -15,6 +15,7 @@ import sys
 import tempfile
 import time
 import unittest
+import urllib.parse
 import urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -106,6 +107,15 @@ class EndToEnd(unittest.TestCase):
         name = job["name"]
         self.assertTrue(name.startswith("T01 - Typed title - captured "))
         self.assertIn("frames missing", job["damage"])
+
+        # it can be watched on the page, from the start or from anywhere in it (seeking); nothing else is served
+        url = "http://127.0.0.1:%d/watch/%s" % (self.port, urllib.parse.quote(name))
+        req = urllib.request.Request(url, headers={"Range": "bytes=1000-1999"})
+        with urllib.request.urlopen(req, timeout=10) as r:
+            self.assertEqual((r.status, len(r.read())), (206, 1000))
+            self.assertTrue(r.headers["Content-Range"].startswith("bytes 1000-1999/"))
+        with self.assertRaises(urllib.error.HTTPError):
+            urllib.request.urlopen("http://127.0.0.1:%d/watch/..%%2Fvideocap.conf" % self.port, timeout=10)
 
         # the MP4 and its .nfo are in the library, under the item's name; the master moved to the masters disk
         self.assertTrue(os.path.getsize(os.path.join(self.mp4s, "T01 - Typed title.mp4")) > 100000)

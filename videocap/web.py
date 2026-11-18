@@ -3,6 +3,7 @@
     GET  /              the page (static/index.html)
     GET  /status.json   everything the page shows
     GET  /snap.jpg      the latest snapshot while recording
+    GET  /watch/NAME    a listed capture's MP4 (with byte ranges, for seeking); 404 if its disk isn't here
     POST /start         record now (Start, then press play)
     POST /stop          stop recording (a take stopped by hand is held for review)
     POST /next          body: an item ID (blank = unlisted): the item the next capture is of (or the one recording)
@@ -17,7 +18,9 @@
 """
 import json
 import os
+import re
 import time
+import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 PAGE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "index.html")
@@ -54,8 +57,50 @@ def handler(app):
                         self.send(200, "image/jpeg", f.read())
                 except OSError:
                     self.send(404, "text/plain", b"no picture yet")
+            elif path.startswith("/watch/"):
+                self.watch(urllib.parse.unquote(path[len("/watch/"):]))
             else:
                 self.send(404, "text/plain", b"not found")
+
+        def watch(self, name):
+            """Play a capture's MP4: whole, or the byte range the browser asks for (seeking)."""
+            p = app.watch_path(name)
+            if not p:
+                return self.send(404, "text/plain", b"that capture's disk isn't connected")
+            size = os.path.getsize(p)
+            m = re.match(r"bytes=(\d*)-(\d*)$", self.headers.get("Range") or "")
+            start, end = 0, size - 1
+            if m and (m.group(1) or m.group(2)):
+                if m.group(1):
+                    start, end = int(m.group(1)), int(m.group(2) or size - 1)
+                else:  # the last N bytes
+                    start = max(0, size - int(m.group(2)))
+                end = min(end, size - 1)
+                if start > end:
+                    self.send_response(416)
+                    self.send_header("Content-Range", "bytes */%d" % size)
+                    self.end_headers()
+                    return
+            self.send_response(206 if m else 200)
+            self.send_header("Content-Type", "video/mp4")
+            self.send_header("Accept-Ranges", "bytes")
+            self.send_header("Content-Length", str(end - start + 1))
+            if m:
+                self.send_header("Content-Range", "bytes %d-%d/%d" % (start, end, size))
+            self.end_headers()
+            try:
+                with open(p, "rb") as f:
+                    f.seek(start)
+                    left = end - start + 1
+                    while left > 0:
+                        chunk = f.read(min(left, 1 << 20))
+                        if not chunk:
+                            break
+                        self.wfile.write(chunk)
+                        left -= len(chunk)
+                        app.view_until = time.time() + 90
+            except (BrokenPipeError, ConnectionResetError):
+                pass  # the browser had what it wanted
 
         def do_POST(self):
             ok = True

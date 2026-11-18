@@ -13,8 +13,10 @@ What happens day to day, what it writes, the settings, and why it works the way 
 3. **After each take, by itself:** it goes where *Send captures to* says. As shipped that's just the disk you
    plugged in; with a destination set up, the master moves to a masters disk or uploads, and the MP4 goes to your
    library.
-4. **Watch the MP4,** then press *Master is good: send it* (it goes to your archive) or *Bad take: set it aside*
-   (moved to a `discarded` folder, never sent, nothing deleted) and capture it again.
+4. **Watch it:** press *Watch* on its card and it plays in the preview window (*Back to live* returns to the
+   picture). Then press *Keep* (the master goes to your archive) or *Bad take* (moved to a `discarded` folder,
+   never sent, nothing deleted) and capture it again. Captures play from the capture disk, so its disk has to be
+   plugged in.
 
 The page always says what to do next in plain words, including *Wait* while the last master is being moved and
 checked (a recording started then can lose frames).

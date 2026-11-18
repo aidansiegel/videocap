@@ -101,7 +101,7 @@ class Queue:
         side = [rel(p) for p in (rec.base + ".log", rec.base + ".json") if os.path.exists(p)]
         with self.lock:
             self.jobs.append({"card": card_id, "name": name, "items": items, "entry": entry,
-                              "masters": [rel(p) for p in masters], "sidecars": side,
+                              "masters": [rel(p) for p in masters], "sidecars": side, "mp4": os.path.exists(mp4),
                               "damage": rec.damage.summary(), "counts": rec.damage.as_dict(),
                               "settings": {k: c[k] for k in config.DEST_KEYS},
                               "destination": c.get("DESTINATION_NAME", ""),
@@ -222,7 +222,7 @@ class Queue:
         out = []
         for j in jobs:
             e = j.get("entry") or {}
-            out.append({"name": j["name"], "discarded": bool(j.get("discarded")), "id": e.get("id", ""), "title": e.get("title", ""), "added": j.get("added", ""),
+            out.append({"name": j["name"], "discarded": bool(j.get("discarded")), "id": e.get("id", ""), "title": e.get("title", ""), "added": j.get("added", ""), "mp4": j.get("mp4", True),
                         "destination": j.get("destination", ""), "damage": j.get("damage"), "counts": j.get("counts"),
                         "items": [{k: it[k] for k in ("kind", "state", "note")} for it in j["items"]]})
         return out[::-1]

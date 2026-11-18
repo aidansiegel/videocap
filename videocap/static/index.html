@@ -122,6 +122,11 @@ button,select{font:inherit;color:inherit}
 .crt{position:relative;border-radius:12px;overflow:hidden;background:#000;aspect-ratio:4/3;max-width:440px;margin:0 auto;border:5px solid #0b0c0d;
  box-shadow:0 0 0 1px #2c2f34,inset 0 0 40px rgba(0,0,0,.8)}
 .crt img{width:100%;height:100%;object-fit:fill;display:block}
+.crt video{width:100%;height:100%;object-fit:contain;display:block;background:#000}
+.crt.watching::after{display:none}
+.watchbar{display:flex;align-items:center;gap:10px;margin-top:10px;font-size:12.5px;color:var(--mut)}
+.watchbar b{color:var(--vfd);font:700 10px var(--mono);letter-spacing:.16em;text-shadow:0 0 5px var(--vfd-glow)}
+.watchbar span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);font-weight:600}
 /* widescreen: a 16:9 screen, and the squeezed picture stretched back across it */
 .crt.wide{aspect-ratio:16/9;max-width:560px}
 .crt{transition:aspect-ratio .25s}
@@ -240,8 +245,9 @@ details b{color:var(--text)}
 <div class="col col-deck">
 
 <section class="deck">
- <div class="crt" id="crt"><img id="snap" alt="Live picture while recording" hidden><div class="blank" id="blank">NO PICTURE</div></div>
- <div class="meter"><span>L+R</span><div class="segs" id="segs"></div><span id="db">-- dB</span></div>
+ <div class="crt" id="crt"><img id="snap" alt="Live picture while recording" hidden><video id="vid" controls playsinline preload="metadata" hidden></video><div class="blank" id="blank">NO PICTURE</div></div>
+ <div class="watchbar" id="watchbar" hidden><b>PLAYBACK</b><span id="watchname"></span><button class="lbtn" id="tolive">Back to live</button></div>
+ <div class="meter" id="meter"><span>L+R</span><div class="segs" id="segs"></div><span id="db">-- dB</span></div>
  <div class="dmg" id="dmg"></div>
  <div id="chanbox">
   <div class="lbl lblrow"><span id="detlbl">Next capture</span><button class="linkbtn" id="listbtn">Item list</button></div>
@@ -454,19 +460,32 @@ function status(j){
  const where=[];if(st(['store']).includes('done'))where.push('masters disk');
  if(st(['MP4']).includes('done'))where.push('library');if(st(['master']).includes('done'))where.push('archive');
  return['ok','Done'+(where.length?' \u00b7 saved to '+where.join(', '):'')];}
+// watching a capture in the preview window, instead of the live picture
+let watching=null;
+function watch(name,title){const v=$('vid');watching=name;
+ v.onerror=()=>{if(watching!==name)return;stopWatch();alert('That capture can’t be played now: its disk isn’t connected.')};
+ v.onloadedmetadata=()=>$('crt').classList.toggle('wide',v.videoWidth/v.videoHeight>1.55);
+ v.src='/watch/'+encodeURIComponent(name);v.hidden=false;$('snap').hidden=true;$('blank').hidden=true;
+ $('crt').classList.add('watching');$('watchname').textContent=title;$('watchbar').hidden=false;$('meter').hidden=true;$('dmg').hidden=true;
+ v.play().catch(()=>{});$('crt').scrollIntoView({behavior:'smooth',block:'nearest'})}
+function stopWatch(){const v=$('vid');watching=null;v.pause();v.removeAttribute('src');v.load();v.hidden=true;
+ $('crt').classList.remove('watching');$('watchbar').hidden=true;$('meter').hidden=false;$('dmg').hidden=false;refresh()}
+$('tolive').onclick=stopWatch;
 function takeHtml(j){
  const [cls,text]=status(j), n=esc(j.name);
  const title=j.id&&j.id!=j.title?'<b>'+esc(j.id)+'</b>'+esc(j.title):j.title?esc(j.title):'Untitled capture';
  if(cls=='aside')return '<div class="cap aside"><div><div class="cap-title">'+title+'</div><div class="cap-status">'+esc(text)+'</div></div></div>';
  const meta=[when(j.added),j.destination?'to '+esc(j.destination):'',damage(j)].filter(Boolean).join(' \u00b7 ');
- const side=cls=='wait'?'<div class="cap-side"><button class="lbtn keep" data-n="'+n+'" data-a="approve">\u2713 Keep</button>'+
-  '<button class="lbtn toss" data-n="'+n+'" data-a="discard">\u2715 Bad take</button></div>':
-  cls=='bad'?'<div class="cap-side"><button class="lbtn" data-a="retry">\u21bb Retry</button></div>':
-  cls=='ok'&&!j.items.length?'<div class="cap-side"><button class="lbtn toss" data-n="'+n+'" data-a="discard">\u2715 Bad take</button></div>':'';
+ const play=j.mp4===false?'':'<button class="lbtn" data-n="'+n+'" data-t="'+esc(j.title||j.name)+'" data-a="watch">\u25b6 Watch</button>';
+ const side='<div class="cap-side">'+play+(cls=='wait'?'<button class="lbtn keep" data-n="'+n+'" data-a="approve">\u2713 Keep</button>'+
+  '<button class="lbtn toss" data-n="'+n+'" data-a="discard">\u2715 Bad take</button>':
+  cls=='bad'?'<button class="lbtn" data-a="retry">\u21bb Retry</button>':
+  cls=='ok'&&!j.items.length?'<button class="lbtn toss" data-n="'+n+'" data-a="discard">\u2715 Bad take</button>':'')+'</div>';
  return '<div class="cap '+cls+'"><div><div class="cap-title">'+title+'</div><div class="cap-meta">'+meta+'</div>'+
   '<div class="cap-status">'+esc(text)+'</div></div>'+side+'</div>'}
 $('tapes').onclick=e=>{const b=e.target.closest('button[data-a]');if(!b)return;
  if(b.dataset.a=='retry')return post('retry');
+ if(b.dataset.a=='watch')return watch(b.dataset.n,b.dataset.t);
  const keep=b.dataset.a=='approve';
  if(!confirm(keep?'Keep this capture? Its master goes on to your archive.':'Set this capture aside? Its master moves to a discarded folder (nothing is deleted) and is never sent. Capture the item again afterwards.'))return;
  post(b.dataset.a,b.dataset.n)};
@@ -485,13 +504,13 @@ async function refresh(){
   $('item').innerHTML=r?'<b>NOW</b>'+esc(d.item||'UNTITLED'):it?'<b>NEXT</b>'+esc(it):'';
   lamp('l-video',d.signal===true||!!r); lamp('l-audio',!!d.audio||(r&&r.peak_db!=null)); lamp('l-disk',!!d.card);
   lamp('l-moving',d.step=='wait'); lamp('l-upload',!!d.upload_progress&&d.step!='wait');
-  const asp=r?r.aspect:d.aspect; lamp('l-wide',asp=='16:9'); $('crt').classList.toggle('wide',asp=='16:9');
+  const asp=r?r.aspect:d.aspect; lamp('l-wide',asp=='16:9'); if(!watching)$('crt').classList.toggle('wide',asp=='16:9');
   [...$('aspect').children].forEach(b=>{b.classList.toggle('on',b.dataset.v==asp);b.disabled=!!r});
   // panel
   if(d.standby)sb={at:Date.now()-d.standby.age*1000,cycle:d.standby.cycle*1000};
   panel(d); standbyTick();
   // monitor and meter
-  $('snap').hidden=!r; $('blank').hidden=!!r; if(r)$('snap').src='/snap.jpg?'+Date.now();
+  if(!watching){$('snap').hidden=!r; $('blank').hidden=!!r; if(r)$('snap').src='/snap.jpg?'+Date.now();}
   $('blank').textContent=d.step=='standby'?'STANDBY':d.signal?'PICTURE OK':'NO PICTURE';
   const p=r&&r.peak_db!=null?r.peak_db:null, lit=p==null?0:Math.round(Math.max(0,Math.min(1,(p+48)/48))*24);
   [...$('segs').children].forEach((s,i)=>s.classList.toggle('on',i<lit));

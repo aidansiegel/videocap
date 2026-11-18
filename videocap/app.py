@@ -64,6 +64,8 @@ class App:
         self.standby_until = time.time() + self.f("STANDBY_HOURS") * 3600
         self.standby_retry = 0       # after a standby recording failed to start, try again from this time
         self.restart_standby = False # the next item changed: start the standby recording over under its name
+        self.view_until = 0          # a capture is being watched on the page: keep its disk mounted until then
+        self.viewed = False          # the disk was kept mounted for watching
         self.others_frozen = True    # so the first pause_others(False) thaws them, in case a crash left them frozen
         self.items = self.load_items()
         state = self.load_state()
@@ -265,10 +267,31 @@ class App:
                                                and self.mount(self.card))
 
     def unmount(self):
+        if time.time() < self.view_until:  # someone's watching a capture from this disk: unmount when they stop
+            self.viewed = True
+            return
         if self.conf["TEST_CARD_DIR"] or not os.path.ismount(MOUNT):
             os.sync()
             return
         hardware.umount(MOUNT, tries=5)
+
+    def watch_path(self, name):
+        """The MP4 of a listed capture, to watch on the page: its disk is mounted (if it's plugged in) and kept
+        mounted while it's watched. None if it isn't here."""
+        job = self.queue.find(name)
+        if not job:
+            return None
+        card = job["card"]
+        here = card in self.other_cards or (card == self.last_card_id and self.card)
+        if not here:
+            return None
+        self.view_until = time.time() + 90
+        path = os.path.join(self.card_dir(card), self.conf["FOLDER"], name + "_access.mp4")
+        for _ in range(10):  # the main loop mounts the disk within a second or two
+            if os.path.exists(path):
+                return path
+            time.sleep(0.5)
+        return None
 
     def keep_other_cards(self, card_id):
         """Mount earlier capture disks that are still plugged in and still have queued work, each at
@@ -525,6 +548,12 @@ class App:
         if not card and not self.conf["TEST_CARD_DIR"] and os.path.ismount(MOUNT):
             subprocess.run(["umount", "-l", MOUNT])  # pulled without waiting
 
+        if time.time() < self.view_until:  # a capture is being watched: its disk stays mounted
+            if card and not self.conf["TEST_CARD_DIR"] and not os.path.ismount(MOUNT):
+                self.viewed = self.mount(card) or self.viewed
+        elif self.viewed and not self.rec and not uploading:
+            self.viewed = False
+            self.unmount()
         if self.rec:
             return self.tick_recording(dev, card)
         if was_uploading and not uploading:
