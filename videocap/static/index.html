@@ -24,7 +24,7 @@ main{max-width:720px;margin:0 auto;padding:14px 16px 40px;display:flex;flex-dire
 /* one column on a phone, in the order you need things: display, what to do, the deck, takes; two side by side when
    there's room: the deck on the left, what to do and the takes on the right */
 .col{display:contents}
-.brand{order:0} .vfd{order:1} .now{order:2} .deck{order:3} .last{order:4} .takes{order:5} .help{order:6}
+.brand{order:0} .vfd{order:1} .now{order:2} .deck{order:3} .last{order:4} .takes{order:5}
 @media (min-width:1000px){
  main{max-width:1280px;display:grid;grid-template-columns:minmax(0,1.15fr) minmax(340px,1fr);column-gap:18px;align-items:start;
   grid-template-areas:"brand brand" "vfd now" "deck side"}
@@ -48,7 +48,10 @@ main{max-width:720px;margin:0 auto;padding:14px 16px 40px;display:flex;flex-dire
 button,select{font:inherit;color:inherit}
 
 /* --- brand strip */
-.brand{display:flex;align-items:baseline;justify-content:center;gap:12px;margin:-8px 2px 10px}
+.brand{position:relative;display:flex;align-items:baseline;justify-content:center;gap:12px;margin:-8px 2px 10px}
+.helpbtn{position:absolute;right:0;top:50%;transform:translateY(-50%);appearance:none;border:1px solid var(--edge);border-radius:999px;
+ background:var(--panel);color:var(--mut);font:700 10px/1 var(--sans);letter-spacing:.14em;text-transform:uppercase;padding:5px 11px;cursor:pointer}
+.helpbtn:hover{color:var(--text);border-color:#4a4e55}
 .brand b{font:800 10pt/1 var(--sans);letter-spacing:.14em;text-transform:uppercase;
  background:linear-gradient(180deg,#f4f4f4,#9ea1a6 55%,#d8dadd);-webkit-background-clip:text;background-clip:text;color:transparent}
 .brand span{font:600 11px/1 var(--sans);letter-spacing:.18em;text-transform:uppercase;color:var(--faint);text-align:right}
@@ -231,13 +234,11 @@ dialog .btns .lbtn:first-child{margin-right:auto}
 .hint{font-size:11px;color:var(--faint);margin:5px 2px 0}
 .hint:empty{display:none}
 
-/* --- details */
-details{margin-top:14px;background:var(--panel);border:1px solid var(--edge);border-radius:10px;padding:0 14px}
-summary{cursor:pointer;padding:9px 0;font:700 10px var(--sans);letter-spacing:.16em;text-transform:uppercase;color:var(--mut)}
-dl{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:0 0 14px;font-size:14px}
-dt{color:var(--faint)} dd{margin:0;overflow-wrap:anywhere}
-details ul{margin:0 0 12px;padding-left:18px;font-size:13px;color:var(--mut)} details li{margin:8px 0}
-details b{color:var(--text)}
+/* --- help: an overlay */
+#helpdlg{width:min(620px,calc(100vw - 32px));max-height:calc(100vh - 48px);overflow-y:auto}
+#helpdlg ul{margin:0;padding-left:18px;font-size:13px;line-height:1.5;color:var(--mut)} #helpdlg li{margin:9px 0}
+#helpdlg b{color:var(--text)}
+#helpdlg .x{position:sticky;top:0;float:right;margin:-4px -4px 0 8px}
 .last{font-size:13px;color:var(--faint);margin:14px 2px 0;overflow-wrap:anywhere}
 .last:empty{display:none}
 .lost{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);background:var(--rec);color:#fff;padding:10px 16px;border-radius:999px;
@@ -247,7 +248,7 @@ details b{color:var(--text)}
 @media (prefers-reduced-motion:reduce){*{animation:none!important}}
 </style></head><body><main>
 
-<div class="brand"><b>videocap</b></div>
+<div class="brand"><b>videocap</b><button class="helpbtn" id="helpbtn" aria-haspopup="dialog">? Help</button></div>
 
 <section class="vfd" aria-label="Display">
  <div class="vrow">
@@ -326,23 +327,26 @@ details b{color:var(--text)}
  <h3>Captures</h3>
  <div id="tapes"></div>
 </section>
-<details class="help"><summary>Help</summary><ul>
+<dialog id="helpdlg" aria-labelledby="helptitle"><button class="lbtn x" id="helpclose" aria-label="Close help">✕</button>
+<h3 id="helptitle">Help</h3><ul>
 <li><b>Why it records before you press play:</b> a camcorder or VCR sends no picture until its tape moves, so a
 recording started by the picture would miss the first seconds. While it waits, videocap records in standby: press play
 while the ring is green. If standby has run out, press <b>REC</b>, then play.</li>
 <li><b>Naming captures:</b> type a title (and anything else you know) under <b>Next capture</b>, or load your list
 with <b>Item list</b> and each capture takes the next item. You can fix the name while it records: the files are
 renamed when it finishes.</li>
+<li><b>Watching captures:</b> flip the <b>Video selector</b> over the picture to <b>Captures</b>. The newest plays
+first; click a capture to play it, then flip back to <b>Live</b>.</li>
 <li><b>The picture dropped out right after play</b>, so you started again: nothing to do. A very short take counts as
 a false start: it's held, and the item number stays the same.</li>
-<li><b>A take looks or sounds bad</b> (lost color, tracking, silence): press <b>Bad take</b> on its label, pick that item
+<li><b>A take looks or sounds bad</b> (lost color, tracking, silence): press <b>Bad take</b> on it, pick that item
 again, clean the heads if needed, and capture it again. Set-aside masters move to a <code>discarded</code> folder;
 nothing is deleted.</li>
 <li><b>"Not recording: only … GB free":</b> there's no room for a master. Make room on the masters disk or swap in
 another capture disk, then press <b>REC</b>.</li>
 <li><b>Nothing happens with the source on:</b> check the picture cable, that it's playing (a camcorder in playback
 mode) and the input setting, then turn it off and on.</li>
-</ul></details>
+</ul></dialog>
 </div>
 <dialog id="listdlg">
  <h3>Item list</h3>
@@ -394,6 +398,11 @@ $('fields').oninput=()=>{typedAt=Date.now();clearTimeout(saveTimer);saveTimer=se
 $('fields').addEventListener('focusout',()=>{if(saveTimer)saveDetails()});
 function fillDetails(d){if(saveTimer||Date.now()-typedAt<1500||$('fields').contains(document.activeElement))return;
  document.querySelectorAll('#fields [data-k]').forEach(el=>{const v=(d.details||{})[el.dataset.k]||'';if(el.value!==v)el.value=v})}
+// help, as an overlay; Esc or a click outside closes it
+$('helpbtn').onclick=()=>$('helpdlg').showModal();
+$('helpclose').onclick=()=>$('helpdlg').close();
+$('helpdlg').onclick=e=>{const r=$('helpdlg').getBoundingClientRect();
+ if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)$('helpdlg').close()};
 // the item list dialog
 $('listbtn').onclick=()=>{$('listtext').value='';$('listinfo').textContent=D&&D.items.length?'Now: '+D.items.length+' items'+(D.items_from=='file'?' from the settings file (a list here replaces it).':'.'):'';
  $('listclear').hidden=!(D&&D.items_from=='page');$('listdlg').showModal()};
@@ -407,7 +416,7 @@ $('listclear').onclick=()=>{if(confirm('Remove the list loaded here? The list in
 
 function keyHtml(id,sym,label,cls){return '<button class="key '+cls+'" data-act="'+id+'"><span class="sym">'+sym+'</span>'+label+'</button>'}
 $('acts').onclick=e=>{const b=e.target.closest('button[data-act]');if(!b)return;
- const a=b.dataset.act; if(a=='review')$('takes').scrollIntoView({behavior:'smooth'}); else if(a=='stop')$('stop').click(); else post(a)};
+ const a=b.dataset.act; if(a=='stop')$('stop').click(); else post(a)};
 
 // What to do now: one headline, one line of why, and the one key to press.
 function panel(d){
@@ -430,8 +439,6 @@ function panel(d){
    sub='Cue up '+what+' first.';acts=keyHtml('start','●','REC','primary rec');break;
   default: head=d.message||'';
  }
- if(d.held&&d.held.length&&d.step!='recording'&&d.step!='finishing')
-  acts+=keyHtml('review','✓','REVIEW '+d.held.length,'small');
  if(d.step!='standby'){setPanel(cls,glyph,head,sub,acts);ring(null)}
  $('advice').textContent=(d.warnings||[]).join(' ');
 }
@@ -454,12 +461,11 @@ function standbyTick(){
  if(D.step!='standby'&&!grace){sb=null;return}
  const t=Date.now(),from=sb.at+1000,to=sb.at+sb.cycle-2000,ok=t>=from&&t<to;
  const what=nameOf(D.details,'the next item');
- const extra=D.held&&D.held.length?keyHtml('review','✓','REVIEW '+D.held.length,'small'):'';
  if(ok){const left=Math.ceil((to-t)/1000);
-  setPanel('go','▶','Press PLAY now','Cue up '+what+'. Ready for '+(left<60?left+' s':Math.ceil(left/60)+' min')+'.',extra);
+  setPanel('go','▶','Press PLAY now','Cue up '+what+'. Ready for '+(left<60?left+' s':Math.ceil(left/60)+' min')+'.','');
   ring((t-from)/(to-from),false);setMode('READY','',false);
  }else{const fresh=t<from,left=fresh?from-t:to+NR-t;
-  setPanel('stop',HAND,'Wait '+Math.ceil(left/1000)+' s','Press PLAY when the ring turns green.',extra);
+  setPanel('stop',HAND,'Wait '+Math.ceil(left/1000)+' s','Press PLAY when the ring turns green.','');
   ring(fresh?1-left/NR:Math.min((t-to)/NR,.9),true);setMode('WAIT','wait',false);
   if(t-lastFetch>500)refresh()}}
 

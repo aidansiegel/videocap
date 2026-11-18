@@ -9,7 +9,7 @@
 - Watch any capture in the page's preview window, with seeking: a Live/Captures switch box over the picture,
   arrows to step through captures, and a click on a capture's card to play it.
 - Load the item list on the page: paste cells from a spreadsheet, open a CSV, or type one title per line.
-- No more cassette animation or REVIEW badge on the display.
+- No more cassette animation, REVIEW badge or REVIEW button; Help is an overlay (the Help button, top right).
 - A shorter README; the details moved to `docs/guide.md`.
 - American spelling throughout.
 
