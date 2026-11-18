@@ -1,0 +1,489 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#141518">
+<title>videocap</title>
+<style>
+/* A VCR front panel: brushed dark chassis, a glowing fluorescent display, chunky transport keys, cassette labels. */
+:root{
+ --chassis:#141518; --panel:#1f2125; --panel2:#272a2f; --edge:#08090a; --rule:#33363c;
+ --text:#e4e1d9; --mut:#9a978f; --faint:#6c6a65;
+ --vfd:#62f5d2; --vfd-glow:rgba(98,245,210,.55); --vfd-ghost:rgba(98,245,210,.07);
+ --rec:#ff4436; --rec-glow:rgba(255,68,54,.5); --amber:#ffb547; --amber-glow:rgba(255,181,71,.45);
+ --play:#4ee38f; --play-glow:rgba(78,227,143,.45);
+ --label:#f1e9d4; --ink:#2a2824; --ink-mut:#6f6a5f;
+ --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+ --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{background:var(--chassis)}
+body{margin:0;color:var(--text);font:14px/1.4 var(--sans);
+ background:repeating-linear-gradient(90deg,rgba(255,255,255,.012) 0 1px,transparent 1px 3px),
+            linear-gradient(180deg,#1a1b1f 0%,#121316 100%) fixed;min-height:100vh}
+main{max-width:720px;margin:0 auto;padding:14px 16px 40px;display:flex;flex-direction:column}
+/* one column on a phone, in the order you need things: display, what to do, the deck, takes; two side by side when
+   there's room: the deck on the left, what to do and the takes on the right */
+.col{display:contents}
+.brand{order:0} .vfd{order:1} .now{order:2} .deck{order:3} .last{order:4} .takes{order:5} .help{order:6}
+@media (min-width:1000px){
+ main{max-width:1280px;display:grid;grid-template-columns:minmax(0,1.15fr) minmax(340px,1fr);column-gap:18px;align-items:start;
+  grid-template-areas:"brand brand" "vfd now" "deck side"}
+ .brand{grid-area:brand} .vfd{grid-area:vfd} .now{grid-area:now} .col-deck{grid-area:deck} .col-side{grid-area:side}
+ /* the display and the "do this now" panel share a row, at the same height */
+ main>.vfd,main>.now{align-self:stretch;margin:0}
+ main>.now{align-content:center;grid-template-columns:auto minmax(0,1fr) auto;column-gap:16px}
+ main>.now .icon{grid-row:1/span 3}
+ main>.now h2,main>.now p{grid-column:2}
+ main>.now .acts{grid-column:3;grid-row:1/span 3;flex-direction:column;align-items:stretch;margin-top:0;align-self:center}
+ main>.now .acts .key{justify-content:center;white-space:nowrap}
+ main>.now .advice{grid-column:2;margin-top:6px;padding-top:6px}
+ .col-side .takes{margin-top:14px}
+ .col{display:flex;flex-direction:column;min-width:0}
+ .col-deck .crt{max-width:none}
+ .col-deck .deck{margin-top:14px}
+ /* on a wide screen the pane runs to the bottom of the window, leaving room for Help below it */
+ .col-side{position:sticky;top:12px}
+ #tapes{max-height:calc(100vh - 270px);min-height:200px}
+}
+button,select{font:inherit;color:inherit}
+
+/* --- brand strip */
+.brand{display:flex;align-items:baseline;justify-content:center;gap:12px;margin:-8px 2px 10px}
+.brand b{font:800 10pt/1 var(--sans);letter-spacing:.14em;text-transform:uppercase;
+ background:linear-gradient(180deg,#f4f4f4,#9ea1a6 55%,#d8dadd);-webkit-background-clip:text;background-clip:text;color:transparent}
+.brand span{font:600 11px/1 var(--sans);letter-spacing:.18em;text-transform:uppercase;color:var(--faint);text-align:right}
+
+/* --- the fluorescent display */
+.vfd{position:relative;background:radial-gradient(120% 140% at 50% 0%,#0b1413 0%,#050807 70%);border-radius:10px;
+ padding:10px 14px 10px;border:1px solid #000;box-shadow:inset 0 2px 12px rgba(0,0,0,.9),0 1px 0 rgba(255,255,255,.06);
+ font-family:var(--mono);color:var(--vfd);text-shadow:0 0 6px var(--vfd-glow)}
+.vfd::after{content:"";position:absolute;inset:0;border-radius:10px;pointer-events:none;
+ background:repeating-linear-gradient(0deg,rgba(0,0,0,.18) 0 1px,transparent 1px 3px)}
+.vrow{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.mode{font-size:17px;font-weight:700;letter-spacing:.12em;display:flex;align-items:center;gap:10px;white-space:nowrap}
+.mode .dot{width:9px;height:9px;border-radius:50%;background:currentColor;box-shadow:0 0 10px currentColor}
+.mode.rec{color:var(--rec);text-shadow:0 0 8px var(--rec-glow)} .mode.rec .dot{animation:blink 1s steps(2) infinite}
+.mode.wait,.mode.fin{color:var(--amber);text-shadow:0 0 8px var(--amber-glow)}
+.mode.err{color:var(--rec);text-shadow:0 0 8px var(--rec-glow)}
+.counter{position:relative;font-size:clamp(24px,7vw,34px);font-weight:700;letter-spacing:.04em;line-height:1}
+.counter .ghost{position:absolute;inset:0;color:var(--vfd-ghost);text-shadow:none}
+.counter .lit{position:relative}
+.counter.idle .lit{animation:blink 1.6s steps(2) infinite}
+/* a cassette whose reels turn while recording */
+.reels{display:flex;align-items:center}
+.cassette{width:66px;height:42px;display:block}
+.cassette.vhs{width:76px}
+.cassette *{fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.cassette .thin{stroke-width:1;opacity:.55}
+.cassette .reel{transform-box:fill-box;transform-origin:center}
+.spin .cassette .reel{animation:spin 1.6s linear infinite}
+.item{margin-top:6px;font-size:13px;letter-spacing:.06em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.92}
+.item b{font-weight:700;margin-right:10px}
+.lamps{display:flex;flex-wrap:wrap;gap:5px 6px;margin-top:8px;font-size:10px;letter-spacing:.16em}
+.lamps:not(:has(.lamp:not([hidden]))){display:none}
+.lamp{color:var(--vfd);text-shadow:0 0 6px var(--vfd-glow);padding:2px 6px;border:1px solid rgba(98,245,210,.4);border-radius:5px}
+.lamp.warn{color:var(--amber);text-shadow:0 0 6px var(--amber-glow);border-color:rgba(255,181,71,.45)}
+@keyframes blink{50%{opacity:.15}}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* --- "do this now" */
+.now{margin:14px 0;background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--edge);border-radius:12px;
+ padding:12px 14px;box-shadow:0 1px 0 rgba(255,255,255,.05) inset,0 8px 24px rgba(0,0,0,.35);display:grid;grid-template-columns:auto 1fr;gap:2px 14px;align-items:center}
+.now .icon{grid-row:span 2;width:46px;height:46px;position:relative;display:grid;place-items:center}
+.now .icon svg{position:absolute;inset:0}
+.now .icon .glyph{font-size:21px;line-height:1;color:var(--mut)}
+.now.rec .glyph{color:var(--rec);text-shadow:0 0 12px var(--rec-glow);animation:blink 1s steps(2) infinite}
+.now.go .glyph{color:var(--play);text-shadow:0 0 12px var(--play-glow)}
+.now.stop .glyph{color:var(--amber);text-shadow:0 0 12px var(--amber-glow)}
+.now .glyph svg{display:block;position:static;filter:drop-shadow(0 0 6px var(--amber-glow))}
+.now.bad .glyph{color:var(--rec);text-shadow:0 0 12px var(--rec-glow)}
+.ring .bg{fill:none;stroke:var(--rule);stroke-width:5}
+.ring .fg{fill:none;stroke:var(--play);stroke-width:5;stroke-linecap:round;transform:rotate(-90deg);transform-origin:32px 32px;transition:stroke .2s}
+.ring.red .fg{stroke:var(--rec)}
+.now h2{margin:0;font-size:18px;line-height:1.2}
+.now p{margin:0;color:var(--mut);font-size:13px}
+.now .acts{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.now .acts:empty{display:none}
+.now.go{border-color:rgba(78,227,143,.5)} .now.go h2{color:var(--play)}
+.now.stop{border-color:rgba(255,181,71,.45)} .now.stop h2{color:var(--amber)}
+.now.bad{border-color:rgba(255,68,54,.55)} .now.bad h2{color:var(--rec)}
+.now.rec h2{color:var(--rec)}
+.advice{grid-column:1/-1;margin-top:10px;font-size:13px;color:var(--amber);border-top:1px solid var(--rule);padding-top:10px}
+.advice:empty{display:none}
+
+/* --- keys */
+.key{appearance:none;border:1px solid #000;border-radius:7px;padding:7px 14px;min-height:36px;cursor:pointer;font-weight:700;
+ letter-spacing:.06em;background:linear-gradient(180deg,#3a3d43,#26282c);color:var(--text);
+ box-shadow:0 1px 0 rgba(255,255,255,.12) inset,0 3px 0 #0a0b0c,0 4px 10px rgba(0,0,0,.4);display:inline-flex;align-items:center;gap:8px}
+.key:active{transform:translateY(2px);box-shadow:0 1px 0 rgba(255,255,255,.1) inset,0 1px 0 #0a0b0c}
+.key:disabled{opacity:.35;cursor:default}
+.key .sym{font-size:13px}
+.key.rec .sym{color:var(--rec);text-shadow:0 0 8px var(--rec-glow)}
+.key.primary{background:linear-gradient(180deg,#4a4e55,#30333a);border-color:rgba(255,255,255,.08)}
+.key.primary.rec{box-shadow:0 0 0 2px rgba(255,68,54,.55),0 0 18px var(--rec-glow),0 3px 0 #0a0b0c}
+.key.primary.go{box-shadow:0 0 0 2px rgba(78,227,143,.55),0 0 18px var(--play-glow),0 3px 0 #0a0b0c}
+.key.small{min-height:30px;padding:5px 11px;font-size:12px}
+.key.wide{flex:1 1 auto;justify-content:center}
+
+/* --- monitor and meter */
+.deck{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--edge);border-radius:12px;padding:12px;
+ box-shadow:0 1px 0 rgba(255,255,255,.05) inset}
+.crt{position:relative;border-radius:12px;overflow:hidden;background:#000;aspect-ratio:4/3;max-width:440px;margin:0 auto;border:5px solid #0b0c0d;
+ box-shadow:0 0 0 1px #2c2f34,inset 0 0 40px rgba(0,0,0,.8)}
+.crt img{width:100%;height:100%;object-fit:contain;display:block}
+.crt::after{content:"";position:absolute;inset:0;pointer-events:none;
+ background:repeating-linear-gradient(0deg,rgba(0,0,0,.16) 0 1px,transparent 1px 3px),radial-gradient(ellipse at center,transparent 60%,rgba(0,0,0,.45))}
+.crt .blank{position:absolute;inset:0;display:grid;place-items:center;font:700 14px var(--mono);letter-spacing:.2em;color:#3d5bd6;
+ background:#0d1b6e;text-shadow:0 0 6px rgba(120,150,255,.5)}
+.meter{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;margin-top:10px;font:600 10px var(--mono);letter-spacing:.14em;color:var(--faint)}
+.segs{display:grid;grid-template-columns:repeat(24,1fr);gap:2px;height:8px}
+.segs i{background:#23262a;border-radius:2px}
+.segs i.on{background:var(--play);box-shadow:0 0 6px var(--play-glow)}
+.segs i.on.y{background:var(--amber);box-shadow:0 0 6px var(--amber-glow)}
+.segs i.on.r{background:var(--rec);box-shadow:0 0 6px var(--rec-glow)}
+.dmg{margin-top:8px;font-size:12px;color:var(--mut)}
+.dmg:empty{display:none}
+
+/* --- channel (next item) row */
+.chan{display:flex;gap:6px;align-items:stretch;margin-top:0}
+.chan select{flex:1;min-width:0;min-height:34px;border-radius:7px;border:1px solid #000;padding:0 12px;
+ background:#0b0d0d;color:var(--vfd);font-family:var(--mono);font-size:13px;letter-spacing:.04em;text-shadow:0 0 5px var(--vfd-glow)}
+.lbl{font:700 10px var(--sans);letter-spacing:.18em;text-transform:uppercase;color:var(--faint);margin:12px 2px 5px}
+.transport{display:flex;gap:8px;margin-top:12px}
+
+/* --- captures: one calm card each, status in plain words, buttons only when it waits for you */
+.takes{margin-top:18px}
+.takes h3{font:700 10px var(--sans);letter-spacing:.18em;text-transform:uppercase;color:var(--mut);margin:0 2px 8px}
+/* the captures scroll in a pane of their own */
+#tapes{max-height:70vh;overflow-y:auto;overscroll-behavior:contain;background:rgba(0,0,0,.22);border:1px solid var(--edge);
+ border-radius:10px;padding:8px;box-shadow:inset 0 2px 8px rgba(0,0,0,.45);scrollbar-width:thin;scrollbar-color:#3a3d43 transparent}
+#tapes .cap:last-child{margin-bottom:0}
+.cap{--accent:var(--rule);display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 12px;align-items:center;
+ background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--edge);
+ border-radius:8px;padding:9px 12px;margin:0 0 8px;box-shadow:0 1px 0 rgba(255,255,255,.04) inset}
+.cap.wait{--accent:var(--rec)} .cap.busy{--accent:var(--amber)} .cap.ok{--accent:var(--play)} .cap.bad{--accent:var(--rec)}
+.cap.aside{--accent:var(--faint);opacity:.6;padding:6px 12px}
+.cap-title{font-weight:700;font-size:13px;line-height:1.3;overflow-wrap:anywhere}
+.cap-title b{font-family:var(--mono);color:var(--vfd);text-shadow:0 0 5px var(--vfd-glow);margin-right:8px;font-weight:700}
+.cap-meta{font-size:11.5px;color:var(--faint);margin-top:2px}
+.cap-meta .clean{color:var(--play)} .cap-meta .hurt{color:var(--amber)}
+.cap-status{font-size:12.5px;font-weight:600;margin-top:4px;display:flex;align-items:center;gap:7px}
+.cap-status::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 6px var(--accent);flex:none}
+.cap.aside .cap-status{margin-top:0;font-weight:500;color:var(--mut)}
+.cap-side{display:flex;flex-direction:column;gap:6px}
+.lbtn{appearance:none;border-radius:7px;padding:4px 12px;min-height:30px;font-size:12.5px;font-weight:700;cursor:pointer;border:1px solid #000;white-space:nowrap;
+ color:var(--text);background:linear-gradient(180deg,#3a3d43,#26282c);box-shadow:0 1px 0 rgba(255,255,255,.1) inset,0 2px 0 #0a0b0c}
+.lbtn.keep{background:linear-gradient(180deg,#37965a,#2a7546);border-color:#173f27;color:#fff}
+.lbtn.toss{color:#ff9d93}
+@media (max-width:480px){.cap{grid-template-columns:1fr}.cap-side{flex-direction:row}.cap-side .lbtn{flex:1}}
+
+/* --- picture shape: two keys, the chosen one lit */
+.seg{display:flex;gap:6px}
+.seg .key{flex:1;justify-content:center}
+.seg .key.on{color:var(--vfd);text-shadow:0 0 5px var(--vfd-glow);box-shadow:0 0 0 1px rgba(98,245,210,.55),0 0 10px rgba(98,245,210,.25),0 2px 0 #0a0b0c}
+
+/* --- destination picker */
+.dest{display:flex;gap:8px;align-items:stretch}
+.dest select{flex:1;min-width:0;min-height:34px;border-radius:7px;border:1px solid #000;padding:0 12px;background:#0b0d0d;
+ color:var(--vfd);font-family:var(--mono);font-size:13px;text-shadow:0 0 5px var(--vfd-glow)}
+.hint{font-size:11px;color:var(--faint);margin:5px 2px 0}
+.hint:empty{display:none}
+
+/* --- details */
+details{margin-top:14px;background:var(--panel);border:1px solid var(--edge);border-radius:10px;padding:0 14px}
+summary{cursor:pointer;padding:9px 0;font:700 10px var(--sans);letter-spacing:.16em;text-transform:uppercase;color:var(--mut)}
+dl{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:0 0 14px;font-size:14px}
+dt{color:var(--faint)} dd{margin:0;overflow-wrap:anywhere}
+details ul{margin:0 0 12px;padding-left:18px;font-size:13px;color:var(--mut)} details li{margin:8px 0}
+details b{color:var(--text)}
+.last{font-size:13px;color:var(--faint);margin:14px 2px 0;overflow-wrap:anywhere}
+.last:empty{display:none}
+.lost{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);background:var(--rec);color:#fff;padding:10px 16px;border-radius:999px;
+ font-weight:700;font-size:14px;box-shadow:0 6px 18px rgba(0,0,0,.5);display:none}
+@media (max-width:480px){.now{grid-template-columns:1fr}.now .icon{grid-row:auto;width:42px;height:42px}.now h2{font-size:17px}
+ .mode{font-size:15px}.reels{display:none}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style></head><body><main>
+
+<div class="brand"><b>videocap</b></div>
+
+<section class="vfd" aria-label="Display">
+ <div class="vrow">
+  <div class="mode" id="mode"><span class="dot" id="dot" hidden></span><span id="modetxt">----</span></div>
+  <div class="reels" id="reels" aria-hidden="true">
+   <svg class="cassette vhs" id="vhs" viewBox="0 0 104 58">
+    <rect x="1" y="1" width="102" height="56" rx="3"/>
+    <rect class="thin" x="7" y="5" width="90" height="11" rx="1.5"/>
+    <rect x="18" y="21" width="68" height="30" rx="2"/>
+    <circle class="thin" cx="36" cy="36" r="12"/><circle class="thin" cx="68" cy="36" r="8"/>
+    <g class="reel"><circle cx="36" cy="36" r="5"/><path d="M36 31v3M36 38v3M31 36h3M38 36h3"/></g>
+    <g class="reel"><circle cx="68" cy="36" r="5"/><path d="M68 31v3M68 38v3M63 36h3M70 36h3"/></g>
+    <path class="thin" d="M7 21v30M97 21v30"/>
+   </svg>
+   <svg class="cassette" id="audiocassette" viewBox="0 0 92 58" hidden>
+    <rect x="1" y="1" width="90" height="56" rx="5"/>
+    <rect class="thin" x="7" y="6" width="78" height="32" rx="3"/>
+    <rect x="20" y="13" width="52" height="18" rx="9"/>
+    <path class="thin" d="M30 31h32"/>
+    <g class="reel"><circle cx="31" cy="22" r="6"/><circle cx="31" cy="22" r="1.8"/><path d="M31 16v3M31 25v3M25 22h3M34 22h3"/></g>
+    <g class="reel"><circle cx="61" cy="22" r="6"/><circle cx="61" cy="22" r="1.8"/><path d="M61 16v3M61 25v3M55 22h3M64 22h3"/></g>
+    <path d="M20 57l4-11h44l4 11"/>
+    <circle class="thin" cx="5" cy="5" r="1.2"/><circle class="thin" cx="87" cy="5" r="1.2"/>
+    <circle class="thin" cx="5" cy="53" r="1.2"/><circle class="thin" cx="87" cy="53" r="1.2"/>
+   </svg>
+  </div>
+  <div class="counter idle" id="counter"><span class="ghost">8:88:88</span><span class="lit" id="ctr">-:--:--</span></div>
+ </div>
+ <div class="item" id="item"></div>
+ <div class="lamps" aria-label="Indicators">
+  <span class="lamp on" id="l-video" hidden>VIDEO DETECTED</span><span class="lamp on" id="l-audio" hidden>AUDIO DETECTED</span>
+  <span class="lamp on" id="l-disk" hidden>DISK CONNECTED</span><span class="lamp warn" id="l-moving" hidden>MOVING MASTER</span>
+  <span class="lamp on" id="l-upload" hidden>UPLOADING</span><span class="lamp warn" id="l-review" hidden>REVIEW</span>
+  <span class="lamp on" id="l-wide" hidden>16:9</span>
+ </div>
+</section>
+<section class="now" id="now" aria-live="polite">
+ <div class="icon"><svg class="ring" id="ring" viewBox="0 0 64 64" hidden><circle class="bg" cx="32" cy="32" r="27"/><circle class="fg" id="ringfg" cx="32" cy="32" r="27"/></svg><span class="glyph" id="glyph"></span></div>
+ <h2 id="head">Connecting&hellip;</h2>
+ <p id="sub"></p>
+ <div class="acts" id="acts"></div>
+ <div class="advice" id="advice"></div>
+</section>
+<div class="col col-deck">
+
+<section class="deck">
+ <div class="crt"><img id="snap" alt="Live picture while recording" hidden><div class="blank" id="blank">NO PICTURE</div></div>
+ <div class="meter"><span>L+R</span><div class="segs" id="segs"></div><span id="db">-- dB</span></div>
+ <div class="dmg" id="dmg"></div>
+ <div id="chanbox">
+  <div class="lbl">Next item</div>
+  <div class="chan">
+   <button class="key small" id="chdown" title="Previous item" aria-label="Previous item">&#9664;</button>
+   <select id="next" aria-label="Next item"></select>
+   <button class="key small" id="chup" title="Next item" aria-label="Next item">&#9654;</button>
+  </div>
+ </div>
+ <div class="lbl">Picture shape</div>
+ <div class="seg" id="aspect" role="group" aria-label="Picture shape">
+  <button class="key small" data-v="4:3">4:3 standard</button><button class="key small" data-v="16:9">16:9 widescreen</button>
+ </div>
+ <div class="lbl">Send captures to</div>
+ <div class="dest"><select id="dest" aria-label="Send captures to"></select></div>
+ <div class="hint" id="desthint"></div>
+ <div class="transport">
+  <button class="key wide rec" id="start"><span class="sym">&#9679;</span>REC</button>
+  <button class="key wide" id="stop"><span class="sym">&#9632;</span>STOP</button>
+ </div>
+</section>
+</div>
+<div class="col col-side">
+
+<section class="takes" id="takes" hidden>
+ <h3>Captures</h3>
+ <div id="tapes"></div>
+</section>
+<details class="help"><summary>Help</summary><ul>
+<li><b>Why it records before you press play:</b> a camcorder or VCR sends no picture until its tape moves, so a
+recording started by the picture would miss the first seconds. While it waits, videocap records in standby: press play
+while the ring is green. If standby has run out, press <b>REC</b>, then play.</li>
+<li><b>Wrong item:</b> before pressing play, pick the right one under <b>Next item</b>. If a take already got the wrong
+number, rename its files afterwards.</li>
+<li><b>The picture dropped out right after play</b>, so you started again: nothing to do. A very short take counts as
+a false start: it's held, and the item number stays the same.</li>
+<li><b>A take looks or sounds bad</b> (lost colour, tracking, silence): press <b>Bad take</b> on its label, pick that item
+again, clean the heads if needed, and capture it again. Set-aside masters move to a <code>discarded</code> folder;
+nothing is deleted.</li>
+<li><b>"Not recording: only … GB free":</b> there's no room for a master. Make room on the masters disk or swap in
+another capture disk, then press <b>REC</b>.</li>
+<li><b>Nothing happens with the source on:</b> check the picture cable, that it's playing (a camcorder in playback
+mode) and the input setting, then turn it off and on.</li>
+</ul></details>
+</div>
+<div class="lost" id="lost">Lost contact with the station</div>
+</main><script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+const fmt=s=>Math.floor(s/3600)+':'+String(Math.floor(s%3600/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
+// a raised hand (stop), in the panel's colour
+const HAND='<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+
+ '<path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V12"/><path d="M11 11V4a1.5 1.5 0 0 1 3 0v7"/><path d="M14 11V5a1.5 1.5 0 0 1 3 0v7"/>'+
+ '<path d="M17 12V8a1.5 1.5 0 0 1 3 0v6a7 7 0 0 1-7 7h-1.5a6 6 0 0 1-4.6-2.2L4.3 15.2a1.6 1.6 0 0 1 2.4-2.1L8 14.5"/></svg>';
+let D=null,sb=null,itemsKey='',destKey='',fetching=false,lastFetch=0;
+
+// level meter segments
+$('segs').innerHTML=Array.from({length:24},(_,i)=>'<i class="'+(i>=21?'r':i>=17?'y':'')+'"></i>').join('');
+
+async function post(path,body){
+ const r=await fetch('/'+path,{method:'POST',body});
+ if(r.status==409&&(path=='approve'||path=='discard'))alert('That can’t be done now: part of it may already be on its way, or its disk isn’t connected.');
+ refresh()}
+$('start').onclick=()=>post('start');
+$('stop').onclick=()=>{if(D&&D.recording&&!confirm('Stop recording now? The take is kept and held for your review.'))return;post('stop')};
+$('next').onchange=()=>post('next',$('next').value);
+$('dest').onchange=()=>post('destination',$('dest').value);
+$('aspect').onclick=e=>{const b=e.target.closest('button[data-v]');if(b&&!b.disabled)post('aspect',b.dataset.v)};
+function stepItem(d){if(!D||!D.items.length)return;const ids=D.items.map(t=>t.id).concat(['']);
+ let i=ids.indexOf(D.next||'');i=Math.max(0,Math.min(ids.length-1,i+d));post('next',ids[i])}
+$('chdown').onclick=()=>stepItem(-1); $('chup').onclick=()=>stepItem(1);
+
+function keyHtml(id,sym,label,cls){return '<button class="key '+cls+'" data-act="'+id+'"><span class="sym">'+sym+'</span>'+label+'</button>'}
+$('acts').onclick=e=>{const b=e.target.closest('button[data-act]');if(!b)return;
+ const a=b.dataset.act; if(a=='review')$('takes').scrollIntoView({behavior:'smooth'}); else if(a=='stop')$('stop').click(); else post(a)};
+
+// What to do now: one headline, one line of why, and the one key to press.
+function panel(d){
+ const nxt=d.items.find(t=>t.id==d.next), what=nxt?nxt.id+' · '+nxt.title:'the next item';
+ let cls='',glyph='',head='',sub='',acts='';
+ switch(d.step){
+  case 'recording': cls='rec';glyph='●';head='Recording';
+   sub=d.recording&&!d.recording.motion_seen?'Waiting for the picture to move.':'Stops by itself at the end.';break;
+  case 'finishing': cls='stop';glyph='⏳';head='Finishing';sub='Don’t turn anything off.';break;
+  case 'plug_device': cls='bad';glyph='⌁';head='Plug in the capture stick';sub='';break;
+  case 'connect_disk': cls='bad';glyph='⛁';head='Connect the capture disk';sub='';break;
+  case 'error': cls='bad';glyph='!';head='Needs attention';sub=d.message;acts=keyHtml('start','●','TRY AGAIN','rec');break;
+  case 'wait': cls='stop';glyph=HAND;head='Wait';
+   sub='Moving the last master. Cue up '+what+'.';break;
+  case 'standby': break; // filled in by the standby clock below
+  case 'press_play': cls='go';glyph='▶';head='Press PLAY';
+   sub='Cue up '+what+'.';
+   acts=keyHtml('start','●','REC NOW','small rec');break;
+  case 'press_start': cls='go';glyph='●';head='Press REC, then PLAY';
+   sub='Cue up '+what+' first.';acts=keyHtml('start','●','REC','primary rec');break;
+  default: head=d.message||'';
+ }
+ if(d.held&&d.held.length&&d.step!='recording'&&d.step!='finishing')
+  acts+=keyHtml('review','✓','REVIEW '+d.held.length,'small');
+ if(d.step!='standby'){setPanel(cls,glyph,head,sub,acts);ring(null)}
+ $('advice').textContent=(d.warnings||[]).join(' ');
+}
+let shownActs=null;
+function setPanel(cls,glyph,head,sub,acts){
+ $('now').className='now '+cls;
+ if(glyph.startsWith('<svg'))$('glyph').innerHTML=glyph; else $('glyph').textContent=glyph; $('head').textContent=head; $('sub').textContent=sub;
+ if(acts!==shownActs){$('acts').innerHTML=acts;shownActs=acts}}
+
+// Standing by restarts every cycle; a tape started in the 2 s before that, or before the next recording runs, could lose a
+// moment, so those seconds say Not ready. The ring counts down: green until Not ready, red until Ready (about 3 s).
+const RC=2*Math.PI*27, NR=3000;
+function ring(frac,red){const g=$('ring');if(frac==null){g.hidden=true;return}
+ g.hidden=false;g.setAttribute('class','ring'+(red?' red':''));
+ $('ringfg').style.strokeDasharray=RC;$('ringfg').style.strokeDashoffset=RC*(1-Math.max(0,Math.min(1,frac)))}
+function standbyTick(){
+ if(!D||!sb)return;
+ // a refresh can land mid-restart, between one standby recording and the next: keep counting through it
+ const grace=D.step=='press_play'&&Date.now()<sb.at+sb.cycle+5000;
+ if(D.step!='standby'&&!grace){sb=null;return}
+ const t=Date.now(),from=sb.at+1000,to=sb.at+sb.cycle-2000,ok=t>=from&&t<to;
+ const nxt=D.items.find(x=>x.id==D.next),what=nxt?nxt.id+' · '+nxt.title:'the next item';
+ const extra=D.held&&D.held.length?keyHtml('review','✓','REVIEW '+D.held.length,'small'):'';
+ if(ok){const left=Math.ceil((to-t)/1000);
+  setPanel('go','▶','Press PLAY now','Cue up '+what+'. Ready for '+(left<60?left+' s':Math.ceil(left/60)+' min')+'.',extra);
+  ring((t-from)/(to-from),false);setMode('READY','',false);
+ }else{const fresh=t<from,left=fresh?from-t:to+NR-t;
+  setPanel('stop',HAND,'Wait '+Math.ceil(left/1000)+' s','Press PLAY when the ring turns green.',extra);
+  ring(fresh?1-left/NR:Math.min((t-to)/NR,.9),true);setMode('WAIT','wait',false);
+  if(t-lastFetch>500)refresh()}}
+
+function setMode(txt,cls,dot){$('modetxt').textContent=txt;$('mode').className='mode '+cls;$('dot').hidden=!dot}
+// only what is true right now is shown: nothing for what isn't there
+function lamp(id,on){$(id).hidden=!on}
+
+// One card per capture: what it is, when, where it's going, how clean it is, and one plain status line.
+const when=iso=>{const t=new Date(iso);return isNaN(t)?'':t.toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})};
+// counts from the station's damage text, for captures queued before counts were kept, and for the live line
+function counts(text){const m=/(\d+) frames missing \(([\d.]+) s\), (\d+) sound overruns, (\d+) clipped/.exec(text||'');
+ return m?{missing_frames:+m[1],missing_seconds:+m[2],sound_overruns:+m[3],clipped_moments:+m[4]}:null}
+function damage(j){const c=j.counts||counts(j.damage);
+ if(!c)return j.damage?'<span>'+esc(j.damage)+'</span>':'';
+ const bits=[];
+ if(c.missing_frames)bits.push(c.missing_frames+' frame'+(c.missing_frames==1?'':'s')+' lost ('+c.missing_seconds+' s)');
+ if(c.sound_overruns)bits.push(c.sound_overruns+' sound dropout'+(c.sound_overruns==1?'':'s'));
+ if(c.clipped_moments)bits.push(c.clipped_moments+' clipped');
+ if(/nearly silent/.test(j.damage||''))bits.push((/left/.test(j.damage)?'left':'right')+' channel silent');
+ return bits.length?'<span class="hurt">'+esc(bits.join(' \u00b7 '))+'</span>':'<span class="clean">Clean capture</span>'}
+function status(j){
+ const st=k=>j.items.filter(i=>k.includes(i.kind)).map(i=>i.state), all=j.items.map(i=>i.state);
+ const prog=D&&D.upload_progress&&D.upload_progress.startsWith(j.name+':')?D.upload_progress.slice(j.name.length+1).trim():'';
+ if(j.discarded||all.length&&all.every(x=>x=='discarded'||x=='done')&&all.includes('discarded'))return['aside','Set aside \u00b7 its master is in the discarded folder'];
+ const bad=j.items.find(i=>i.state=='failed'||i.state=='missing');
+ if(bad)return['bad','Problem: '+(bad.note||bad.state)];
+ const skip=j.items.find(i=>i.state=='skipped'&&i.kind!='checksums');
+ if(skip)return['bad','Skipped: '+(skip.note||'not uploaded')];
+ if(all.includes('held')){
+  if(st(['MP4']).includes('held'))return['wait','Stopped early \u2014 keep it?'];
+  const mp4=st(['MP4'])[0];
+  return['wait',mp4&&mp4!='done'?'Waiting for you \u00b7 MP4 still uploading':'Waiting for you'];}
+ if(st(['store']).includes('pending'))return['busy',prog||'Moving to the masters disk\u2026'];
+ if(all.includes('pending'))return['busy',prog?'Uploading \u00b7 '+prog:'Uploading\u2026'];
+ if(!all.length)return['ok','Saved on this disk'];
+ const where=[];if(st(['store']).includes('done'))where.push('masters disk');
+ if(st(['MP4']).includes('done'))where.push('library');if(st(['master']).includes('done'))where.push('archive');
+ return['ok','Done'+(where.length?' \u00b7 saved to '+where.join(', '):'')];}
+function takeHtml(j){
+ const [cls,text]=status(j), n=esc(j.name);
+ const title=j.id?'<b>'+esc(j.id)+'</b>'+esc(j.title):'Unlisted capture';
+ if(cls=='aside')return '<div class="cap aside"><div><div class="cap-title">'+title+'</div><div class="cap-status">'+esc(text)+'</div></div></div>';
+ const meta=[when(j.added),j.destination?'to '+esc(j.destination):'',damage(j)].filter(Boolean).join(' \u00b7 ');
+ const side=cls=='wait'?'<div class="cap-side"><button class="lbtn keep" data-n="'+n+'" data-a="approve">\u2713 Keep</button>'+
+  '<button class="lbtn toss" data-n="'+n+'" data-a="discard">\u2715 Bad take</button></div>':
+  cls=='bad'?'<div class="cap-side"><button class="lbtn" data-a="retry">\u21bb Retry</button></div>':
+  cls=='ok'&&!j.items.length?'<div class="cap-side"><button class="lbtn toss" data-n="'+n+'" data-a="discard">\u2715 Bad take</button></div>':'';
+ return '<div class="cap '+cls+'"><div><div class="cap-title">'+title+'</div><div class="cap-meta">'+meta+'</div>'+
+  '<div class="cap-status">'+esc(text)+'</div></div>'+side+'</div>'}
+$('tapes').onclick=e=>{const b=e.target.closest('button[data-a]');if(!b)return;
+ if(b.dataset.a=='retry')return post('retry');
+ const keep=b.dataset.a=='approve';
+ if(!confirm(keep?'Keep this capture? Its master goes on to your archive.':'Set this capture aside? Its master moves to a discarded folder (nothing is deleted) and is never sent. Capture the item again afterwards.'))return;
+ post(b.dataset.a,b.dataset.n)};
+
+async function refresh(){
+ if(fetching)return;fetching=true;lastFetch=Date.now();
+ try{const d=await (await fetch('/status.json',{cache:'no-store'})).json();D=d;$('lost').style.display='none';
+  document.title=(d.recording?'● ':'')+'videocap';
+  const r=d.recording;
+  // display
+  const modes={recording:['REC','rec',true],finishing:['FINISH','fin',false],error:['ERROR','err',false],wait:['WAIT','wait',false],
+   press_play:['READY','',false],press_start:['STOP','',false],plug_device:['NO DEV','err',false],connect_disk:['NO DISK','err',false],standby:['STANDBY','',false]};
+  const m=modes[d.step]||['----','',false]; if(d.step!='standby')setMode(...m);
+  $('ctr').textContent=r?fmt(r.elapsed):'-:--:--'; $('counter').className='counter'+(r?'':' idle');
+  $('reels').className='reels'+(r&&!r.frozen?' spin':'');
+  // a VHS tape for video; an audio cassette when the item's format says it's audio
+  const cur=d.items.find(t=>t.id==(r&&d.item?d.item.split(':')[0]:d.next));
+  const audio=/audio|cassette|micro.?cassette/i.test(cur&&cur.format||'');
+  $('vhs').hidden=audio; $('audiocassette').hidden=!audio;
+  const it=r&&d.item?d.item:(d.items.find(t=>t.id==d.next)?d.next+' '+d.items.find(t=>t.id==d.next).title:'');
+  $('item').innerHTML=r?'<b>NOW</b>'+esc(d.item||'UNLISTED'):it?'<b>NEXT</b>'+esc(it):(d.items.length?'<b>NEXT</b>UNLISTED':'');
+  lamp('l-video',d.signal===true||!!r); lamp('l-audio',!!d.audio||(r&&r.peak_db!=null)); lamp('l-disk',!!d.card);
+  lamp('l-moving',d.step=='wait'); lamp('l-upload',!!d.upload_progress&&d.step!='wait');
+  lamp('l-review',!!(d.held&&d.held.length));
+  const asp=r?r.aspect:d.aspect; lamp('l-wide',asp=='16:9');
+  [...$('aspect').children].forEach(b=>{b.classList.toggle('on',b.dataset.v==asp);b.disabled=!!r});
+  // panel
+  if(d.standby)sb={at:Date.now()-d.standby.age*1000,cycle:d.standby.cycle*1000};
+  panel(d); standbyTick();
+  // monitor and meter
+  $('snap').hidden=!r; $('blank').hidden=!!r; if(r)$('snap').src='/snap.jpg?'+Date.now();
+  $('blank').textContent=d.step=='standby'?'STANDBY':d.signal?'PICTURE OK':'NO PICTURE';
+  const p=r&&r.peak_db!=null?r.peak_db:null, lit=p==null?0:Math.round(Math.max(0,Math.min(1,(p+48)/48))*24);
+  [...$('segs').children].forEach((s,i)=>s.classList.toggle('on',i<lit));
+  $('db').textContent=p==null?'-- dB':(p<=-90?'-∞':p.toFixed(0))+' dB';
+  $('dmg').innerHTML=r?'So far: '+damage({damage:r.damage}):'';
+  // next item
+  if(itemsKey!==JSON.stringify(d.items)){itemsKey=JSON.stringify(d.items);
+   $('next').innerHTML=d.items.map(t=>'<option value="'+esc(t.id)+'">'+esc(t.id+'  '+t.title)+'</option>').join('')+'<option value="">Unlisted</option>'}
+  if(document.activeElement!==$('next'))$('next').value=d.next||'';
+  const canPick=!r&&d.items.length>0; $('chanbox').hidden=!canPick;
+  $('start').disabled=!!r||!!d.standby||d.step=='finishing'; $('stop').disabled=!r&&!d.standby;
+  $('start').classList.toggle('primary',d.step=='press_start');
+  // captures
+  const ups=d.uploads||[]; $('takes').hidden=!ups.length;
+  $('tapes').innerHTML=ups.map(takeHtml).join('');
+  // where captures go
+  const dk=JSON.stringify(d.destinations);
+  if(destKey!==dk){destKey=dk;$('dest').innerHTML=d.destinations.map(x=>'<option value="'+esc(x.id)+'">'+esc(x.label)+'</option>').join('')}
+  if(document.activeElement!==$('dest'))$('dest').value=d.destination;
+  $('dest').disabled=d.destinations.length<2;
+  $('desthint').textContent=d.destinations.length<2?'Add destinations (AWS, a VPS, Dropbox\u2026) in the settings file.':r?'A change applies from the next capture.':'';
+ }catch(e){$('lost').style.display='block'}finally{fetching=false}}
+refresh();setInterval(refresh,2000);setInterval(standbyTick,100);
+</script></body></html>

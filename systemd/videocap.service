@@ -1,0 +1,24 @@
+[Unit]
+Description=videocap unattended analog video capture
+After=local-fs.target network-online.target
+Wants=network-online.target
+
+[Service]
+Environment=PYTHONPATH=/opt/videocap
+ExecStart=/usr/bin/python3 -m videocap
+RuntimeDirectory=videocap
+# the capture disk is mounted under /run/videocap: never have systemd remove it while something is mounted there
+RuntimeDirectoryPreserve=yes
+StateDirectory=videocap
+Restart=on-failure
+RestartSec=3
+# capture comes before anything else on the machine for CPU and disk
+Nice=-5
+IOSchedulingClass=best-effort
+IOSchedulingPriority=0
+# videocap stops ffmpeg itself, so the files are finalized and the disk unmounted
+KillMode=mixed
+TimeoutStopSec=90
+
+[Install]
+WantedBy=multi-user.target

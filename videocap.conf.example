@@ -1,0 +1,147 @@
+# videocap settings: /etc/videocap/videocap.conf
+# KEY=value, one per line; # starts a comment. Read again before each recording, so most changes need no restart.
+# Anything left out takes its default (python3 -m videocap --check prints every setting in effect).
+
+# --- Your station ------------------------------------------------------------
+
+# Names this station in each take's report and in hooks. Blank = this machine's host name.
+STATION_NAME=
+
+# NTSC for sources from the Americas and Japan, PAL for most of Europe, Asia, Africa and Oceania.
+STANDARD=NTSC
+
+# Your capture stick's profile: field order, crop, audio delay and how it reports a picture (see docs/profiles.md).
+# Built in: generic, usblive2-e1. Your own: a file in /etc/videocap/profiles/NAME.conf, or a path.
+PROFILE=generic
+
+# auto tries S-Video first, then composite. Better: name the jack your deck is on (svideo or composite). While it
+# waits, auto keeps switching inputs, and a tape that starts while the other input is selected loses seconds.
+INPUT=auto
+
+# Picture shape unless the item list (an aspect column) or the page says otherwise: 4:3, or 16:9 for widescreen
+# (anamorphic) sources such as a camcorder's 16:9 mode. Letterboxed widescreen (black bars in a 4:3 picture) is 4:3.
+ASPECT=4:3
+
+# both = lossless master (FFV1 in Matroska, for preservation and restoration) + MP4 (H.264, plays anywhere)
+# master = lossless only; access = MP4 only
+MODE=both
+
+# --- The capture disk ----------------------------------------------------------
+
+# Record only to a USB partition with this name (any case). Name it when you format the disk (exFAT is best).
+# Blank = the largest writable USB filesystem plugged in. Other partitions on the disk are left alone.
+CARD_LABEL=CAPTURES
+
+# A master runs about 25-40 GB per hour of video. With less than this free, videocap won't record (a take is no use
+# without its master); NO_ROOM=mp4 records just the MP4 instead.
+MASTER_MIN_FREE_GB=80
+NO_ROOM=refuse
+
+# After each take its master moves here (copied, compared byte for byte, then removed from the capture disk), so the
+# capture disk has room for the next take. Must already exist (it's never created, so a disk that isn't mounted
+# just leaves masters on the capture disk). Blank = masters stay on the capture disk.
+MASTERS_DIR=
+MASTERS_SPARE_GB=10
+
+# --- Starting and stopping by itself -------------------------------------------
+
+# While waiting, record in standby and start over this often, so the first frame lands in a recording that's
+# already running (a camera sends no picture until its tape moves). Each restart leaves about 3 s when pressing play
+# would lose the start; the page shows a ring and says Not ready then. 0 = off: press Start, then play.
+STANDBY_SEC=300
+# Stop standing by this long after the last take.
+STANDBY_HOURS=3
+# After Start with no picture yet: this long to press play.
+PREPLAY_SEC=180
+
+# Stop once the source has played and the picture has been frozen (a player's blue screen) this long. 0 = never
+# (for a live source; see the README).
+STOP_AFTER_FROZEN_MIN=3
+# Stop if the picture never moves (nobody pressed play). 0 = never.
+GIVE_UP_NO_MOTION_MIN=30
+# Stop when there's no picture lock for this long: source off or unplugged, or a long blank stretch on a tape.
+SIGNAL_LOST_SEC=60
+# A take shorter than this is a false start (the picture dropped out, and it was started again): it's held
+# for review and the next item number stays the same. 0 = no false starts.
+MIN_TAKE_MINUTES=5
+# Longest take; 0 = no limit.
+MAX_MINUTES=180
+
+# A live copy of the picture and sound for VLC on another computer: host:port, then open udp://@:port in VLC.
+PREVIEW_UDP=
+
+# --- Your collection --------------------------------------------------------------
+
+# A list of your items (tapes, discs, ...) in the order you'll capture them: CSV with a header row (id,label and optionally title,
+# format) or JSON. Each take is named after the "next item", which moves on after each good take; the web page lets
+# you pick another. Blank = takes are numbered capture001, capture002, ...
+ITEM_LIST=
+# For the library .nfo files beside each MP4: a collection tag, and "Digitized by <name> in <month year>".
+COLLECTION=
+DIGITIZED_BY=
+NFO=1
+
+# --- Where captures go ----------------------------------------------------------------
+# As shipped, everything stays on the capture disk you plug in: nothing is uploaded or moved anywhere else.
+#
+# To send captures elsewhere, add destinations below, then pick one under "Send captures to" on the web page. Each
+# capture goes where the picker pointed when it started; switching never redirects one already on its way.
+# "This disk only" is always on the list.
+#
+# A destination is a name plus any of: MASTERS_DIR (a bigger local disk for masters), MP4_REMOTE (MP4s and .nfo
+# files, e.g. a media library), MASTER_REMOTE (masters, logs, reports and checksums, one folder per capture, the
+# checksum file last). Remotes are rclone destinations ("remote:path", set up once with `sudo rclone config`) or
+# local folders: AWS S3 or Glacier, a VPS over SFTP, Dropbox, Google Drive, Backblaze B2, a NAS. See docs/recipes.md.
+# A destination may also set MASTER_REVIEW, REPLACE_EXISTING, REMOTE_MIN_FREE_GB or UPLOAD_BWLIMIT for itself.
+#
+# AWS: masters to Glacier Deep Archive (the "aws" remote is type s3 with storage_class = DEEP_ARCHIVE)
+#DEST.aws.LABEL=AWS
+#DEST.aws.MASTER_REMOTE=aws:my-video-bucket/masters
+#
+# A VPS: masters and MP4s over SFTP (the "vps" remote is type sftp)
+#DEST.vps.LABEL=My VPS
+#DEST.vps.MASTER_REMOTE=vps:videocap/masters
+#DEST.vps.MP4_REMOTE=vps:videocap/mp4
+#
+# Dropbox: MP4s only, to watch anywhere (masters are 25-40 GB an hour)
+#DEST.dropbox.LABEL=Dropbox
+#DEST.dropbox.MP4_REMOTE=dropbox:Home Videos
+#
+# A bigger local disk for masters, plus MP4s into a media server's library on the network
+#DEST.home.LABEL=Masters disk + library
+#DEST.home.MASTERS_DIR=/mnt/masters/videocap
+#DEST.home.MP4_REMOTE=nas:Media/Home Videos
+
+# The destination used until one is picked on the page (a name from above, or disk). Blank = disk only.
+DEFAULT_DESTINATION=
+
+# For every destination, unless it sets its own:
+# 1 = masters wait until you press Keep on the web page (check the MP4 first). Do this when the archive charges to
+# delete (Glacier) or keeps everything (versioned buckets).
+MASTER_REVIEW=1
+# 1 = a recapture of a listed item replaces its MP4 at MP4_REMOTE: the earlier video and its subtitles move to
+# .replaced/<capture>/ beside it (nothing is deleted); descriptions and artwork stay.
+REPLACE_EXISTING=0
+# Skip uploads that would leave less than this free at the destination (for remotes that report free space).
+REMOTE_MIN_FREE_GB=0
+# e.g. 4M (bytes per second) to leave room on a home connection.
+UPLOAD_BWLIMIT=
+# rclone's settings file. Blank = root's default (/root/.config/rclone/rclone.conf).
+RCLONE_CONFIG=
+
+# A program run after each take is finished, approved or discarded (see hooks/). Runs at the lowest priority.
+HOOK=
+
+# --- This machine --------------------------------------------------------------------
+
+WEB_PORT=80
+# Other heavy jobs on this machine (systemd units), frozen while recording and resumed after. Even at the lowest
+# priority they can cost a capture frames and sound.
+PAUSE_UNITS=
+# uid:gid that owns files on exFAT/FAT/NTFS capture disks.
+DISK_OWNER=1000:1000
+# auto = show the state on a Raspberry Pi's LEDs; none = leave them alone.
+LEDS=auto
+# Blank = found by themselves (the first USB capture device and the sound card on the same USB device).
+VIDEO_DEVICE=
+AUDIO_DEVICE=
