@@ -2,9 +2,10 @@
 import json
 import os
 import tempfile
+import time
 import unittest
 
-from videocap import collection, config
+from videocap import collection, config, mdns
 from videocap.queue import join
 from videocap.recording import Damage, build_command
 
@@ -80,6 +81,25 @@ class CollectionTest(unittest.TestCase):
         self.assertEqual(items[0]["file"], "T01 - Summer '93 - beach")
         self.assertEqual(items[1]["file"], "T02 - Christmas")
         self.assertEqual(items[1]["format"], "VHS")
+
+    def test_pasted_spreadsheet(self):
+        items = collection.parse("Tape #\tName\tDescription\tYear\n7\tSummer 94\tBeach, with Liam\t1994\n8\t\t\t\n")
+        self.assertEqual(items[1]["title"], "8")  # nothing else to call it
+        t = items[0]
+        self.assertEqual((t["id"], t["title"], t["notes"], t["date"]), ("7", "Summer 94", "Beach, with Liam", "1994"))
+        nfo = collection.nfo(t, "2026-11-18")
+        self.assertIn("<year>1994</year>", nfo)
+        self.assertIn("Beach, with Liam.", nfo)
+
+    def test_one_title_per_line(self):
+        items = collection.parse("Christmas 1993\n\nGrandpa's 75th, Oct '94\n")
+        self.assertEqual([(t["id"], t["title"]) for t in items],
+                         [("001", "Christmas 1993"), ("003", "Grandpa's 75th, Oct '94")])
+
+    def test_typed_title_only(self):
+        t = collection.make_item({"id": "", "title": "Dad's retirement party", "notes": ""})
+        self.assertEqual(t["file"], "Dad's retirement party")
+        self.assertIsNone(collection.make_item({"id": "", "title": "", "notes": "just notes"}))
 
     def test_json(self):
         with tempfile.TemporaryDirectory() as d:
@@ -186,6 +206,31 @@ class RemoteTest(unittest.TestCase):
         self.assertEqual(join("nas:videos", "b.mp4"), "nas:videos/b.mp4")
         self.assertEqual(join("/mnt/lib/", "b.mp4"), "/mnt/lib/b.mp4")
         self.assertEqual(join("/mnt/lib", "b.mp4"), "/mnt/lib/b.mp4")
+
+
+class AnnounceTest(unittest.TestCase):
+    def test_takes_the_next_name_when_taken(self):
+        with tempfile.TemporaryDirectory() as d:
+            fake = os.path.join(d, "avahi-publish")  # holds any name but videocap.local, like a second station
+            with open(fake, "w") as f:
+                f.write('#!/bin/sh\n[ "$3" = videocap.local ] && { echo "Failed to add address: Local name collision" >&2;'
+                        ' exit 1; }\necho "$3 $4" > "%s/held"\necho "Established under name \'$3\'" >&2\nexec sleep 60\n' % d)
+            os.chmod(fake, 0o755)
+            path = os.environ["PATH"]
+            os.environ["PATH"] = d + os.pathsep + path
+            a = mdns.Announcer("videocap")
+            try:
+                a.start()
+                for _ in range(50):
+                    if a.name and os.path.exists(os.path.join(d, "held")):
+                        break
+                    time.sleep(0.1)
+                self.assertEqual(a.name, "videocap-2.local")
+                with open(os.path.join(d, "held")) as f:
+                    self.assertTrue(f.read().startswith("videocap-2.local "))
+            finally:
+                os.environ["PATH"] = path
+                a.stop()
 
 
 if __name__ == "__main__":

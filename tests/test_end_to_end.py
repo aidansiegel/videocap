@@ -92,21 +92,28 @@ class EndToEnd(unittest.TestCase):
         self.assertIn(b"videocap", page)
         s = self.wait_for("recording", lambda s: s["recording"])
         self.assertEqual(s["item"], "T01: Test item")
+        # named on the page while it records: the files are renamed when it finishes
+        self.assertEqual(self.post("details", json.dumps({"id": "T01", "title": "Typed title", "format": "VHS",
+                                                          "date": "July 1994", "notes": "Typed on the page"}).encode()), 204)
+        self.assertEqual(self.status()["item"], "T01: Typed title")
         s = self.wait_for("the take held for review",
                           lambda s: s["uploads"] and any(i["kind"] == "master" and i["state"] == "held"
                                                          for i in s["uploads"][0]["items"])
                           and all(i["state"] in ("done", "held") for i in s["uploads"][0]["items"]))
         self.assertEqual(s["next"], "T02")  # moved on to the next item
+        self.assertEqual(s["details"]["title"], "Second")
         job = s["uploads"][0]
         name = job["name"]
-        self.assertTrue(name.startswith("T01 - Test item - captured "))
+        self.assertTrue(name.startswith("T01 - Typed title - captured "))
         self.assertIn("frames missing", job["damage"])
 
         # the MP4 and its .nfo are in the library, under the item's name; the master moved to the masters disk
-        self.assertTrue(os.path.getsize(os.path.join(self.mp4s, "T01 - Test item.mp4")) > 100000)
-        with open(os.path.join(self.mp4s, "T01 - Test item.nfo")) as f:
+        self.assertTrue(os.path.getsize(os.path.join(self.mp4s, "T01 - Typed title.mp4")) > 100000)
+        with open(os.path.join(self.mp4s, "T01 - Typed title.nfo")) as f:
             nfo = f.read()
-        self.assertIn("<title>Test item</title>", nfo)
+        self.assertIn("<title>Typed title</title>", nfo)
+        self.assertIn("Typed on the page. Recorded July 1994.", nfo)
+        self.assertIn("<year>1994</year>", nfo)
         self.assertIn("Test collection", nfo)
         self.assertTrue(os.path.exists(os.path.join(self.masters, name + "_master.mkv")))
         self.assertFalse(os.path.exists(os.path.join(self.card, "captures", name + "_master.mkv")))
@@ -132,9 +139,9 @@ class EndToEnd(unittest.TestCase):
         # T01 is marked 16:9 in the item list: both copies carry the widescreen pixel shape
         sar = lambda f: json.loads(probe(f, "stream=sample_aspect_ratio"))["streams"][0]["sample_aspect_ratio"]
         self.assertEqual(sar(os.path.join(self.masters, name + "_master.mkv")), "40:33")
-        self.assertEqual(sar(os.path.join(self.mp4s, "T01 - Test item.mp4")), "40:33")
+        self.assertEqual(sar(os.path.join(self.mp4s, "T01 - Typed title.mp4")), "40:33")
         self.assertEqual(report["aspect"], "16:9")
-        a = json.loads(probe(os.path.join(self.mp4s, "T01 - Test item.mp4"), "format=duration"))
+        a = json.loads(probe(os.path.join(self.mp4s, "T01 - Typed title.mp4"), "format=duration"))
         self.assertGreater(float(a["format"]["duration"]), 15)
 
         # approve: master, log, report, then checksums last

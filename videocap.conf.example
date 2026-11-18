@@ -7,6 +7,10 @@
 # Names this station in each take's report and in hooks. Blank = this machine's host name.
 STATION_NAME=
 
+# The web page's address on your network: http://videocap.local/ (a second station takes videocap-2.local, and so
+# on). Blank = don't announce one; the page is still at this machine's own name or address.
+NETWORK_NAME=videocap
+
 # NTSC for sources from the Americas and Japan, PAL for most of Europe, Asia, Africa and Oceania.
 STANDARD=NTSC
 
@@ -55,7 +59,7 @@ STANDBY_HOURS=3
 PREPLAY_SEC=180
 
 # Stop once the source has played and the picture has been frozen (a player's blue screen) this long. 0 = never
-# (for a live source; see the README).
+# (for a live source; see docs/guide.md).
 STOP_AFTER_FROZEN_MIN=3
 # Stop if the picture never moves (nobody pressed play). 0 = never.
 GIVE_UP_NO_MOTION_MIN=30
@@ -72,9 +76,10 @@ PREVIEW_UDP=
 
 # --- Your collection --------------------------------------------------------------
 
-# A list of your items (tapes, discs, ...) in the order you'll capture them: CSV with a header row (id,label and optionally title,
-# format) or JSON. Each take is named after the "next item", which moves on after each good take; the web page lets
-# you pick another. Blank = takes are numbered capture001, capture002, ...
+# A list of your items (tapes, discs, ...) in the order you'll capture them: CSV or tab-separated with a header row
+# (id, label, title, format, aspect, date, notes), JSON, or one title per line. Easier: load one with "Item list" on
+# the web page, which replaces this. Each capture is named after the next item, which moves on after each good
+# capture; the page lets you pick another or type a name. Blank, with nothing typed = capture001, capture002, ...
 ITEM_LIST=
 # For the library .nfo files beside each MP4: a collection tag, and "Digitized by <name> in <month year>".
 COLLECTION=

@@ -3,7 +3,7 @@
 #
 #   sudo ./install.sh [--no-apt] [--no-start]
 #
-# Installs the packages it needs (ffmpeg, rclone, v4l-utils, alsa-utils), copies videocap to /opt/videocap, puts the
+# Installs the packages it needs (ffmpeg, rclone, v4l-utils, alsa-utils, avahi), copies videocap to /opt/videocap, puts the
 # example settings at /etc/videocap/videocap.conf if there are none yet (an existing file is never touched), and
 # installs and starts the systemd service. Refuses to restart a station that is recording.
 set -euo pipefail
@@ -32,7 +32,7 @@ fi
 
 if [[ $apt == yes ]]; then
     apt-get update -q
-    DEBIAN_FRONTEND=noninteractive apt-get install -y -q python3 ffmpeg rclone v4l-utils alsa-utils curl
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -q python3 ffmpeg rclone v4l-utils alsa-utils avahi-daemon avahi-utils curl
 fi
 for t in python3 ffmpeg ffprobe rclone v4l2-ctl cmp lsblk findmnt; do
     command -v "$t" >/dev/null || echo "warning: $t not found" >&2
@@ -58,7 +58,7 @@ if [[ $start == yes ]]; then
     systemctl restart videocap
     sleep 2
     systemctl --no-pager --lines=5 status videocap || true
-    echo "Web page: http://$(hostname).local/ (or this machine's address)"
+    echo "Web page: http://videocap.local/ (videocap-2.local and so on if another station has the name)"
 else
     echo "Installed. Start it with: sudo systemctl enable --now videocap"
 fi

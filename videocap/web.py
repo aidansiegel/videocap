@@ -5,7 +5,10 @@
     GET  /snap.jpg      the latest snapshot while recording
     POST /start         record now (Start, then press play)
     POST /stop          stop recording (a take stopped by hand is held for review)
-    POST /next          body: an item ID (blank = unlisted): the item the next take is of
+    POST /next          body: an item ID (blank = unlisted): the item the next capture is of (or the one recording)
+    POST /details       body: JSON id, title, format, date, notes: name and describe the next capture (or this one)
+    POST /items         body: an item list (CSV, pasted spreadsheet cells, JSON, or a title per line); empty =
+                        back to ITEM_LIST. Answers {"count": n}
     POST /aspect        body: 4:3 or 16:9: the next capture's picture shape
     POST /destination   body: a destination ID (from status.json "destinations"): where captures started from now go
     POST /approve       body: a take's name: send what's held of it
@@ -71,9 +74,21 @@ def handler(app):
                 ok = app.set_aspect(self.body(20))
             elif self.path == "/destination":
                 ok = app.set_destination(self.body(100))
-            elif self.path == "/next" and (not app.rec or app.rec.standby):
-                app.set_next(self.body(200))
-                app.restart_standby = True
+            elif self.path == "/next":
+                rec = app.rec
+                if app.set_next(self.body(200)) and rec and rec.standby:
+                    app.restart_standby = True  # the picture shape is set when a recording starts
+                if rec and not rec.standby:  # recording: this is what it's of
+                    app.set_details(app.details)
+            elif self.path == "/details":
+                try:
+                    ok = app.set_details(json.loads(self.body(20000) or "{}"))
+                except ValueError:
+                    ok = False
+            elif self.path == "/items":
+                n = app.set_items(self.body(2_000_000))
+                body = json.dumps({"count": n}).encode()
+                return self.send(200 if n is not None else 422, "application/json", body)
             else:
                 ok = False
             self.send(204 if ok else 409, "text/plain", b"")

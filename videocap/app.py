@@ -17,7 +17,7 @@ import threading
 import time
 from datetime import datetime
 
-from . import collection, config, hardware
+from . import collection, config, hardware, mdns
 from .hardware import log
 from .queue import Queue
 from .recording import Recording
@@ -25,6 +25,8 @@ from .recording import Recording
 MOUNT = os.path.join(config.RUN, "card")
 OTHER = os.path.join(config.RUN, "other")  # earlier capture disks, while their queued work finishes
 SNAP = os.path.join(config.RUN, "snap.jpg")
+PAGE_LIST = os.path.join(config.STATE_DIR, "items-from-page.txt")  # an item list pasted or loaded on the page
+DETAIL_KEYS = ("id", "title", "format", "date", "notes")  # what the page can type for a capture
 
 
 def save_json(path, data):
@@ -66,6 +68,11 @@ class App:
         self.items = self.load_items()
         state = self.load_state()
         self.next_item = state.get("next", self.items[0]["id"] if self.items else "")
+        if self.next_item and not self.item(self.next_item):
+            self.next_item = self.items[0]["id"] if self.items else ""
+        # what's typed on the page for the next capture (id, title, format, date, notes): starts as the next listed
+        # item's, and names the capture
+        self.details = state.get("details") or self.item_details(self.item(self.next_item))
         self.destination = state.get("destination", "")  # "" = not picked yet: see config.apply_destination
         self.next_aspect = state.get("aspect") or self.item_aspect(self.next_item)
         os.makedirs(MOUNT, exist_ok=True)
@@ -77,11 +84,60 @@ class App:
         return self.conf["STATION_NAME"] or socket.gethostname().split(".")[0]
 
     def load_items(self):
+        """The list given on the page if there is one, else ITEM_LIST."""
+        path = PAGE_LIST if os.path.exists(PAGE_LIST) else self.conf["ITEM_LIST"]
         try:
-            return collection.load(self.conf["ITEM_LIST"])
+            return collection.load(path)
         except (OSError, ValueError) as e:
-            log("couldn't read the item list %s: %s" % (self.conf["ITEM_LIST"], e))
+            log("couldn't read the item list %s: %s" % (path, e))
             return []
+
+    def set_items(self, text):
+        """A list pasted or loaded on the page replaces ITEM_LIST; an empty one goes back to ITEM_LIST."""
+        items = collection.parse(text)
+        if text.strip() and not items:
+            return None
+        if items:
+            os.makedirs(config.STATE_DIR, exist_ok=True)
+            with open(PAGE_LIST + ".new", "w", encoding="utf-8") as f:
+                f.write(text)
+            os.replace(PAGE_LIST + ".new", PAGE_LIST)
+        else:
+            with contextlib.suppress(OSError):
+                os.remove(PAGE_LIST)
+        self.items = self.load_items()
+        if not self.item(self.next_item):
+            self.set_next(self.items[0]["id"] if self.items else "")
+        log("item list from the page: %d items" % len(self.items) if items else "item list: back to ITEM_LIST")
+        return len(self.items)
+
+    @staticmethod
+    def item_details(item):
+        return {k: (item or {}).get(k, "") for k in DETAIL_KEYS}
+
+    def capture_item(self):
+        """The item a capture is of: what's typed on the page, over the chosen list item if it's still that one."""
+        listed = self.item(self.next_item)
+        t = dict(listed) if listed and self.details.get("id") == listed["id"] else {}
+        t.pop("file", None)  # named from the title as typed
+        t.update({k: v for k, v in self.details.items() if k in DETAIL_KEYS})
+        return collection.make_item(t)
+
+    def set_details(self, d):
+        """Name and describe the next capture, or the one recording now (its files are renamed when it finishes)."""
+        if not isinstance(d, dict):
+            return False
+        self.details = {k: str(d.get(k, self.details.get(k, "")))[:2000].strip() for k in DETAIL_KEYS}
+        self.save_state()
+        rec = self.rec
+        if rec:
+            rec.item = self.capture_item()
+            rec.label = rec.item and self.item_label(rec.item) or os.path.basename(rec.base)
+        return True
+
+    @staticmethod
+    def item_label(t):
+        return "%s: %s" % (t["id"], t["title"]) if t["id"] and t["id"] != t["title"] else t["title"]
 
     def load_state(self):
         try:
@@ -91,18 +147,24 @@ class App:
             return {}
 
     def item(self, tid):
-        return next((t for t in self.items if t["id"] == tid), None)
+        return next((t for t in self.items if t["id"] == tid), None) if tid else None
 
-    def set_next(self, tid):
-        """Which item the next recording is (blank = unlisted); kept across restarts."""
+    def set_next(self, tid, keep=()):
+        """Which item the next recording is (blank = unlisted); kept across restarts. Its details replace what was
+        typed, except the keys in keep. True if the picture shape changed (a standby recording must start over)."""
         self.next_item = tid if self.item(tid) else ""
+        old = self.next_aspect if hasattr(self, "next_aspect") else None
         self.next_aspect = self.item_aspect(self.next_item)  # each item starts from its own shape
+        fresh = self.item_details(self.item(self.next_item))
+        self.details = {k: (self.details.get(k, "") if k in keep and not fresh[k] else fresh[k]) for k in DETAIL_KEYS}
         self.save_state()
         log("next item: %s" % (self.next_item or "unlisted"))
+        return old != self.next_aspect
 
     def save_state(self):
         save_json(os.path.join(config.STATE_DIR, "state.json"),
-                  {"next": self.next_item, "destination": self.destination, "aspect": self.next_aspect})
+                  {"next": self.next_item, "destination": self.destination, "aspect": self.next_aspect,
+                   "details": self.details})
 
     def item_aspect(self, tid):
         """An item's picture shape: its aspect column, else the ASPECT setting (4:3 unless set)."""
@@ -233,9 +295,10 @@ class App:
 
     # --- recording ------------------------------------------------------------------
 
-    def take_base(self, folder, item):
+    def take_base(self, folder, item, when=None):
+        when = datetime.fromtimestamp(when) if when else datetime.now()
         if item:  # the capture time keeps every take of an item apart
-            return os.path.join(folder, "%s - captured %s" % (item["file"], datetime.now().strftime("%Y-%m-%d %H%M")))
+            return os.path.join(folder, "%s - captured %s" % (item["file"], when.strftime("%Y-%m-%d %H%M")))
         nums = [int(m.group(1)) for m in (re.match(r"capture(\d+)_", n) for n in os.listdir(folder)) if m]
         return os.path.join(folder, "capture%03d_%s" % (max(nums, default=0) + 1, datetime.now().strftime("%Y-%m-%d_%H%M")))
 
@@ -245,7 +308,7 @@ class App:
             return self.set_state("error", "Couldn't mount the disk (%s)" % card.get("fstype"), "error")
         folder = os.path.join(self.card_dir(), self.conf["FOLDER"])
         os.makedirs(folder, exist_ok=True)
-        item = self.item(self.next_item)
+        item = self.capture_item()
         base = self.take_base(folder, item)
         if standby and os.path.exists(base + ".log"):
             # a take already has this minute's name (one just stopped by hand): a standby recording would write over
@@ -281,7 +344,7 @@ class App:
         self.rec.item = item
         self.rec.dest = self.dest_conf()  # where this capture goes, whatever is picked later
         self.lost_since = None
-        self.rec.label = (item["id"] + ": " + item["title"] if item else os.path.basename(base)) + note
+        self.rec.label = (self.item_label(item) if item else os.path.basename(base)) + note
         if standby:
             self.rec.standby = True
             self.set_state("ready", "Ready: standing by, so recording begins with the first frame when you "
@@ -304,7 +367,7 @@ class App:
     def write_report(self, rec, reason, error, held):
         """A sidecar JSON beside the master: what the take is, how it ended, and what it lost."""
         report = {"name": os.path.basename(rec.base), "station": self.station(),
-                  "item": rec.item and {k: rec.item[k] for k in ("id", "label", "title", "format")},
+                  "item": rec.item and {k: rec.item[k] for k in ("id", "label", "title", "format", "date", "notes") if rec.item.get(k)},
                   "started": datetime.fromtimestamp(rec.started).isoformat(timespec="seconds"),
                   "picture_locked": rec.signal_at and datetime.fromtimestamp(rec.signal_at).isoformat(timespec="seconds"),
                   "seconds": round(rec.duration()), "stopped_because": reason, "error": error,
@@ -316,10 +379,28 @@ class App:
         with contextlib.suppress(OSError):
             save_json(rec.base + ".json", report)
 
+    def rename_take(self, rec):
+        """Files are named when recording starts; a name typed or changed since renames them now."""
+        if not rec.item:
+            return
+        folder = os.path.dirname(rec.base)
+        new = self.take_base(folder, rec.item, rec.started)
+        if new == rec.base or glob.glob(glob.escape(new) + "[._]*"):
+            return
+        try:
+            for p in glob.glob(glob.escape(rec.base) + "_*") + glob.glob(glob.escape(rec.base) + ".*"):
+                os.rename(p, new + p[len(rec.base):])
+        except OSError as e:
+            log("couldn't rename %s: %s" % (os.path.basename(rec.base), e))
+            return
+        log("renamed %s to %s" % (os.path.basename(rec.base), os.path.basename(new)))
+        rec.base = new
+
     def finish(self, reason, error=False):
         self.set_state("finishing", "Finishing files: " + reason)
         rec, self.rec = self.rec, None
         rec.stop(reason)
+        self.rename_take(rec)
         by_hand = reason == "stopped from the web page"
         # a take of a few seconds (the picture dropped out just after play, and it was started again) is a
         # false start, as is a picture that never moved (Stop before play, the wrong input)
@@ -357,12 +438,14 @@ class App:
         elif short:
             reason += ("; only %d s long, so it's taken as a false start: held until you approve it, and the next "
                        "item stays the same" % rec.duration())
-        name = rec.item["id"] if rec.item else os.path.basename(rec.base)
+        name = (rec.item["id"] or rec.item["title"]) if rec.item else os.path.basename(rec.base)
         self.last_result = "%s: %s. Capture: %s" % (name, reason, rec.damage.summary())
         log("%s capture: %s" % (name, rec.damage.summary()))
-        if rec.item and rec.item["id"] == self.next_item and not error and rec.motion_seen and not held:
-            i = self.items.index(rec.item)
-            self.set_next(self.items[i + 1]["id"] if i + 1 < len(self.items) else "")
+        if not error and rec.motion_seen and not held:  # on to the next: the listed item after this one, if any
+            ids = [t["id"] for t in self.items]
+            done = rec.item["id"] if rec.item and rec.item["id"] in ids else self.next_item
+            i = ids.index(done) + 1 if done in ids else len(ids)
+            self.set_next(ids[i] if i < len(ids) else "", keep=("format",))  # the next one is likely the same format
         if self.signal is not None:  # the next take needs a fresh picture or disk
             self.last_signal = self.signal
         self.standby_until = time.time() + self.f("STANDBY_HOURS") * 3600
@@ -391,6 +474,7 @@ class App:
         t = job.get("entry") or {}
         env = dict(os.environ, VIDEOCAP_EVENT=event, VIDEOCAP_NAME=job["name"], VIDEOCAP_ID=t.get("id", ""),
                    VIDEOCAP_LABEL=t.get("label", ""), VIDEOCAP_TITLE=t.get("title", ""),
+                   VIDEOCAP_FORMAT=t.get("format", ""), VIDEOCAP_DATE=t.get("date", ""), VIDEOCAP_NOTES=t.get("notes", ""),
                    VIDEOCAP_MASTERS=os.pathsep.join(masters), VIDEOCAP_MP4=base + "_access.mp4",
                    VIDEOCAP_LOG=base + ".log", VIDEOCAP_REPORT=base + ".json",
                    VIDEOCAP_DAMAGE=job.get("damage") or "", VIDEOCAP_STATION=self.station())
@@ -520,6 +604,8 @@ class App:
         if sig is None or sig:  # a picture (or a driver that can't say): it's a real recording now, from before play
             rec.standby = False
             rec.dest = self.dest_conf()  # the destination picked by the time play was pressed
+            rec.item = self.capture_item()  # and the name typed by then
+            rec.label = rec.item and self.item_label(rec.item) or os.path.basename(rec.base)
             rec.signal_at = now
             rec.damage.reset()  # what the device did while there was nothing to capture isn't damage to the recording
             rec.note("picture locked on %s %.1f s after the standby recording started"
@@ -657,10 +743,16 @@ class App:
                                                   else "no more masters"))
         return s
 
+    def address(self):
+        """The page's address on the network, once it's announced."""
+        a = getattr(self, "announcer", None)
+        port = self.conf["WEB_PORT"]
+        return a and a.name and "http://%s%s/" % (a.name, "" if port == "80" else ":" + port) or None
+
     def status(self):
         rec = self.rec
         mfree = self.masters_free()
-        d = {"station": self.station(), "step": self.step(), "held": self.queue.held(), "warnings": self.warnings(mfree),
+        d = {"station": self.station(), "address": self.address(), "step": self.step(), "held": self.queue.held(), "warnings": self.warnings(mfree),
              "state": self.state, "message": self.message, "last": self.last_result,
              "advice": self.advice(mfree), "masters_free_gb": mfree and round(mfree),
              "master_gb": self.f("MASTER_MIN_FREE_GB"), "profile": self.conf["PROFILE"],
@@ -672,7 +764,9 @@ class App:
              "destinations": [{"id": x["id"], "label": x["label"]} for x in config.destinations(self.conf)],
              "destination": self.dest_conf()["DESTINATION"],
              "next": self.next_item, "aspect": self.next_aspect, "items": [{"id": t["id"], "title": t["title"], "format": t["format"]} for t in self.items],
-             "item": rec and not rec.standby and rec.item and "%s: %s" % (rec.item["id"], rec.item["title"]) or None}
+             "items_from": "page" if os.path.exists(PAGE_LIST) else "file" if self.items else "",
+             "details": self.details,
+             "item": rec and not rec.standby and rec.item and self.item_label(rec.item) or None}
         # standing by: how far into this standby recording, so the page can say Not ready in the 2 s before it starts
         # over (two recordings can't hold the device at once) and until the next one is running
         d["standby"] = rec and rec.standby and {"age": time.time() - rec.started, "cycle": self.f("STANDBY_SEC")} or None
@@ -693,6 +787,8 @@ class App:
         threading.Thread(target=serve, args=(self,), daemon=True).start()
         threading.Thread(target=self.queue.run, daemon=True).start()
         self.pause_others(False)  # in case a crash left them frozen
+        self.announcer = mdns.Announcer(self.conf["NETWORK_NAME"])
+        self.announcer.start()
         log("videocap on %s: profile %s, %d items listed, web page on port %s"
             % (self.station(), self.conf["PROFILE"], len(self.items), self.conf["WEB_PORT"]))
         try:
@@ -708,4 +804,5 @@ class App:
             elif self.rec:
                 self.finish("videocap shutting down")
             self.pause_others(False)
+            self.announcer.stop()
             self.led.restore()

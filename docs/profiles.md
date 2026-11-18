@@ -71,5 +71,5 @@ What the `usblive2-e1` profile handles:
   left alone. For more headroom on hot tapes, use inline RCA attenuators.
 
 Cabling note from the field: a camcorder with a single 3.5 mm AV jack and a generic 3.5 mm-to-RCA cable often has
-the plug colours wrong (the cable's yellow plug carrying left audio). Plugged in by colour, one channel is just buzz,
+the plug colors wrong (the cable's yellow plug carrying left audio). Plugged in by color, one channel is just buzz,
 and the damage report says "left channel nearly silent". Check with headphones before the first take.

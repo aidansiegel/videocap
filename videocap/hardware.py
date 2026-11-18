@@ -190,7 +190,7 @@ def usb_partitions():
 
 
 def find_card(label, mount_point):
-    """The largest writable USB filesystem not in use elsewhere (only ones labelled `label`, if set)."""
+    """The largest writable USB filesystem not in use elsewhere (only ones labeled `label`, if set)."""
     best = None
     for p in usb_partitions():
         if p.get("mountpoint") not in (None, mount_point):

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.0.1 alpha 2 (2026-11-18)
+
+- The station announces itself as `videocap.local` (Avahi), so the page has the same address whatever the machine is
+  called; a second station takes `videocap-2.local`. Setting: `NETWORK_NAME`.
+- Name and describe each capture on the page (title, number, format, date, notes), before or while it records;
+  the files are renamed when it finishes. Notes and the date go into the library .nfo.
+- Load the item list on the page: paste cells from a spreadsheet, open a CSV, or type one title per line.
+- No more cassette animation or REVIEW badge on the display.
+- A shorter README; the details moved to `docs/guide.md`.
+- American spelling throughout.
+
 ## 0.0.1 alpha (2026-11-17)
 
 First version as a standalone project, generalized from a working single-station capture appliance that

@@ -3,7 +3,7 @@
 <meta name="theme-color" content="#141518">
 <title>videocap</title>
 <style>
-/* A VCR front panel: brushed dark chassis, a glowing fluorescent display, chunky transport keys, cassette labels. */
+/* A VCR front panel: brushed dark chassis, a glowing fluorescent display, chunky transport keys. */
 :root{
  --chassis:#141518; --panel:#1f2125; --panel2:#272a2f; --edge:#08090a; --rule:#33363c;
  --text:#e4e1d9; --mut:#9a978f; --faint:#6c6a65;
@@ -69,14 +69,6 @@ button,select{font:inherit;color:inherit}
 .counter .ghost{position:absolute;inset:0;color:var(--vfd-ghost);text-shadow:none}
 .counter .lit{position:relative}
 .counter.idle .lit{animation:blink 1.6s steps(2) infinite}
-/* a cassette whose reels turn while recording */
-.reels{display:flex;align-items:center}
-.cassette{width:66px;height:42px;display:block}
-.cassette.vhs{width:76px}
-.cassette *{fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
-.cassette .thin{stroke-width:1;opacity:.55}
-.cassette .reel{transform-box:fill-box;transform-origin:center}
-.spin .cassette .reel{animation:spin 1.6s linear infinite}
 .item{margin-top:6px;font-size:13px;letter-spacing:.06em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.92}
 .item b{font-weight:700;margin-right:10px}
 .lamps{display:flex;flex-wrap:wrap;gap:5px 6px;margin-top:8px;font-size:10px;letter-spacing:.16em}
@@ -84,7 +76,6 @@ button,select{font:inherit;color:inherit}
 .lamp{color:var(--vfd);text-shadow:0 0 6px var(--vfd-glow);padding:2px 6px;border:1px solid rgba(98,245,210,.4);border-radius:5px}
 .lamp.warn{color:var(--amber);text-shadow:0 0 6px var(--amber-glow);border-color:rgba(255,181,71,.45)}
 @keyframes blink{50%{opacity:.15}}
-@keyframes spin{to{transform:rotate(360deg)}}
 
 /* --- "do this now" */
 .now{margin:14px 0;background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--edge);border-radius:12px;
@@ -151,6 +142,22 @@ button,select{font:inherit;color:inherit}
 .chan{display:flex;gap:6px;align-items:stretch;margin-top:0}
 .chan select{flex:1;min-width:0;min-height:34px;border-radius:7px;border:1px solid #000;padding:0 12px;
  background:#0b0d0d;color:var(--vfd);font-family:var(--mono);font-size:13px;letter-spacing:.04em;text-shadow:0 0 5px var(--vfd-glow)}
+.fields{display:grid;gap:6px;margin-top:6px}
+.fl{display:grid;gap:3px;min-width:0}
+.fl>span{font:700 9px var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--faint);padding-left:2px}
+.fields .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+.fields input,.fields textarea,#listtext{width:100%;min-width:0;min-height:34px;border-radius:7px;border:1px solid #000;padding:7px 10px;
+ background:#0b0d0d;color:var(--text);font:13px var(--sans);box-sizing:border-box}
+.fields textarea,#listtext{resize:vertical;line-height:1.4}
+.fields input::placeholder,.fields textarea::placeholder,#listtext::placeholder{color:var(--faint)}
+.fields #f-title{color:var(--vfd);font-family:var(--mono);text-shadow:0 0 5px var(--vfd-glow)}
+.lblrow{display:flex;justify-content:space-between;align-items:baseline}
+.linkbtn{appearance:none;background:none;border:0;padding:0;color:var(--mut);font:600 11px var(--sans);cursor:pointer;text-decoration:underline}
+dialog{background:var(--panel);color:var(--text);border:1px solid var(--edge);border-radius:12px;padding:16px;width:min(560px,calc(100vw - 32px));box-sizing:border-box}
+dialog::backdrop{background:rgba(0,0,0,.6)}
+dialog h3{margin:0 0 6px;font-size:15px} dialog p{margin:0 0 10px;font-size:12.5px;color:var(--mut);line-height:1.45}
+dialog .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:10px;flex-wrap:wrap}
+dialog .btns .lbtn:first-child{margin-right:auto}
 .lbl{font:700 10px var(--sans);letter-spacing:.18em;text-transform:uppercase;color:var(--faint);margin:12px 2px 5px}
 .transport{display:flex;gap:8px;margin-top:12px}
 
@@ -204,7 +211,7 @@ details b{color:var(--text)}
 .lost{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);background:var(--rec);color:#fff;padding:10px 16px;border-radius:999px;
  font-weight:700;font-size:14px;box-shadow:0 6px 18px rgba(0,0,0,.5);display:none}
 @media (max-width:480px){.now{grid-template-columns:1fr}.now .icon{grid-row:auto;width:42px;height:42px}.now h2{font-size:17px}
- .mode{font-size:15px}.reels{display:none}}
+ .mode{font-size:15px}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important}}
 </style></head><body><main>
 
@@ -213,35 +220,13 @@ details b{color:var(--text)}
 <section class="vfd" aria-label="Display">
  <div class="vrow">
   <div class="mode" id="mode"><span class="dot" id="dot" hidden></span><span id="modetxt">----</span></div>
-  <div class="reels" id="reels" aria-hidden="true">
-   <svg class="cassette vhs" id="vhs" viewBox="0 0 104 58">
-    <rect x="1" y="1" width="102" height="56" rx="3"/>
-    <rect class="thin" x="7" y="5" width="90" height="11" rx="1.5"/>
-    <rect x="18" y="21" width="68" height="30" rx="2"/>
-    <circle class="thin" cx="36" cy="36" r="12"/><circle class="thin" cx="68" cy="36" r="8"/>
-    <g class="reel"><circle cx="36" cy="36" r="5"/><path d="M36 31v3M36 38v3M31 36h3M38 36h3"/></g>
-    <g class="reel"><circle cx="68" cy="36" r="5"/><path d="M68 31v3M68 38v3M63 36h3M70 36h3"/></g>
-    <path class="thin" d="M7 21v30M97 21v30"/>
-   </svg>
-   <svg class="cassette" id="audiocassette" viewBox="0 0 92 58" hidden>
-    <rect x="1" y="1" width="90" height="56" rx="5"/>
-    <rect class="thin" x="7" y="6" width="78" height="32" rx="3"/>
-    <rect x="20" y="13" width="52" height="18" rx="9"/>
-    <path class="thin" d="M30 31h32"/>
-    <g class="reel"><circle cx="31" cy="22" r="6"/><circle cx="31" cy="22" r="1.8"/><path d="M31 16v3M31 25v3M25 22h3M34 22h3"/></g>
-    <g class="reel"><circle cx="61" cy="22" r="6"/><circle cx="61" cy="22" r="1.8"/><path d="M61 16v3M61 25v3M55 22h3M64 22h3"/></g>
-    <path d="M20 57l4-11h44l4 11"/>
-    <circle class="thin" cx="5" cy="5" r="1.2"/><circle class="thin" cx="87" cy="5" r="1.2"/>
-    <circle class="thin" cx="5" cy="53" r="1.2"/><circle class="thin" cx="87" cy="53" r="1.2"/>
-   </svg>
-  </div>
   <div class="counter idle" id="counter"><span class="ghost">8:88:88</span><span class="lit" id="ctr">-:--:--</span></div>
  </div>
  <div class="item" id="item"></div>
  <div class="lamps" aria-label="Indicators">
   <span class="lamp on" id="l-video" hidden>VIDEO DETECTED</span><span class="lamp on" id="l-audio" hidden>AUDIO DETECTED</span>
   <span class="lamp on" id="l-disk" hidden>DISK CONNECTED</span><span class="lamp warn" id="l-moving" hidden>MOVING MASTER</span>
-  <span class="lamp on" id="l-upload" hidden>UPLOADING</span><span class="lamp warn" id="l-review" hidden>REVIEW</span>
+  <span class="lamp on" id="l-upload" hidden>UPLOADING</span>
   <span class="lamp on" id="l-wide" hidden>16:9</span>
  </div>
 </section>
@@ -259,12 +244,24 @@ details b{color:var(--text)}
  <div class="meter"><span>L+R</span><div class="segs" id="segs"></div><span id="db">-- dB</span></div>
  <div class="dmg" id="dmg"></div>
  <div id="chanbox">
-  <div class="lbl">Next item</div>
-  <div class="chan">
+  <div class="lbl lblrow"><span id="detlbl">Next capture</span><button class="linkbtn" id="listbtn">Item list</button></div>
+  <div class="chan" id="pick">
    <button class="key small" id="chdown" title="Previous item" aria-label="Previous item">&#9664;</button>
-   <select id="next" aria-label="Next item"></select>
+   <select id="next" aria-label="Item from your list"></select>
    <button class="key small" id="chup" title="Next item" aria-label="Next item">&#9654;</button>
   </div>
+  <div class="fields" id="fields">
+   <label class="fl"><span>Title</span><input id="f-title" data-k="title" placeholder="What's on it" autocomplete="off"></label>
+   <div class="row3">
+    <label class="fl"><span>Number</span><input id="f-id" data-k="id" placeholder="On the label" autocomplete="off"></label>
+    <label class="fl"><span>Format</span><input id="f-format" data-k="format" list="formats" placeholder="VHS, Hi8…" autocomplete="off"></label>
+    <label class="fl"><span>Recorded</span><input id="f-date" data-k="date" placeholder="July 1994" autocomplete="off"></label>
+   </div>
+   <label class="fl"><span>Notes</span><textarea id="f-notes" data-k="notes" rows="2" placeholder="Who, where, what happens"></textarea></label>
+  </div>
+  <datalist id="formats"><option>VHS</option><option>S-VHS</option><option>VHS-C</option><option>Video8</option><option>Hi8</option>
+   <option>Digital8</option><option>MiniDV</option><option>Betamax</option><option>LaserDisc</option><option>Audio cassette</option></datalist>
+  <div class="hint" id="dethint"></div>
  </div>
  <div class="lbl">Picture shape</div>
  <div class="seg" id="aspect" role="group" aria-label="Picture shape">
@@ -289,11 +286,12 @@ details b{color:var(--text)}
 <li><b>Why it records before you press play:</b> a camcorder or VCR sends no picture until its tape moves, so a
 recording started by the picture would miss the first seconds. While it waits, videocap records in standby: press play
 while the ring is green. If standby has run out, press <b>REC</b>, then play.</li>
-<li><b>Wrong item:</b> before pressing play, pick the right one under <b>Next item</b>. If a take already got the wrong
-number, rename its files afterwards.</li>
+<li><b>Naming captures:</b> type a title (and anything else you know) under <b>Next capture</b>, or load your list
+with <b>Item list</b> and each capture takes the next item. You can fix the name while it records: the files are
+renamed when it finishes.</li>
 <li><b>The picture dropped out right after play</b>, so you started again: nothing to do. A very short take counts as
 a false start: it's held, and the item number stays the same.</li>
-<li><b>A take looks or sounds bad</b> (lost colour, tracking, silence): press <b>Bad take</b> on its label, pick that item
+<li><b>A take looks or sounds bad</b> (lost color, tracking, silence): press <b>Bad take</b> on its label, pick that item
 again, clean the heads if needed, and capture it again. Set-aside masters move to a <code>discarded</code> folder;
 nothing is deleted.</li>
 <li><b>"Not recording: only … GB free":</b> there's no room for a master. Make room on the masters disk or swap in
@@ -302,12 +300,25 @@ another capture disk, then press <b>REC</b>.</li>
 mode) and the input setting, then turn it off and on.</li>
 </ul></details>
 </div>
+<dialog id="listdlg">
+ <h3>Item list</h3>
+ <p>Paste cells from a spreadsheet (with a header row such as Number, Title, Format, Date, Notes), a CSV, or one title per
+ line. Captures are named from it in order.</p>
+ <textarea id="listtext" rows="9" placeholder="Number&#9;Title&#9;Format&#10;T01&#9;Christmas 1993&#9;Hi8&#10;T02&#9;Summer 1994&#9;Hi8"></textarea>
+ <p id="listinfo" style="margin-top:8px"></p>
+ <div class="btns">
+  <label class="lbtn" style="display:inline-flex;align-items:center">Open a file<input type="file" id="listfile" accept=".csv,.tsv,.txt,.json,text/*" hidden></label>
+  <button class="lbtn" id="listclear">Remove list</button>
+  <button class="lbtn" id="listcancel">Cancel</button>
+  <button class="lbtn keep" id="listsave">Use this list</button>
+ </div>
+</dialog>
 <div class="lost" id="lost">Lost contact with the station</div>
 </main><script>
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
 const fmt=s=>Math.floor(s/3600)+':'+String(Math.floor(s%3600/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
-// a raised hand (stop), in the panel's colour
+// a raised hand (stop), in the panel's color
 const HAND='<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+
  '<path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V12"/><path d="M11 11V4a1.5 1.5 0 0 1 3 0v7"/><path d="M14 11V5a1.5 1.5 0 0 1 3 0v7"/>'+
  '<path d="M17 12V8a1.5 1.5 0 0 1 3 0v6a7 7 0 0 1-7 7h-1.5a6 6 0 0 1-4.6-2.2L4.3 15.2a1.6 1.6 0 0 1 2.4-2.1L8 14.5"/></svg>';
@@ -328,6 +339,27 @@ $('aspect').onclick=e=>{const b=e.target.closest('button[data-v]');if(b&&!b.disa
 function stepItem(d){if(!D||!D.items.length)return;const ids=D.items.map(t=>t.id).concat(['']);
  let i=ids.indexOf(D.next||'');i=Math.max(0,Math.min(ids.length-1,i+d));post('next',ids[i])}
 $('chdown').onclick=()=>stepItem(-1); $('chup').onclick=()=>stepItem(1);
+// what the next capture (or this one) is called, from the details typed or loaded from the list
+function nameOf(t,dflt){return t&&t.title?(t.id&&t.id!=t.title?t.id+' \u00b7 ':'')+t.title:dflt}
+// details: saved as you type, and never overwritten while you're typing
+let typedAt=0,saveTimer=null;
+function saveDetails(){clearTimeout(saveTimer);saveTimer=null;const d={};
+ document.querySelectorAll('#fields [data-k]').forEach(el=>d[el.dataset.k]=el.value);
+ fetch('/details',{method:'POST',body:JSON.stringify(d)}).then(refresh)}
+$('fields').oninput=()=>{typedAt=Date.now();clearTimeout(saveTimer);saveTimer=setTimeout(saveDetails,700)};
+$('fields').addEventListener('focusout',()=>{if(saveTimer)saveDetails()});
+function fillDetails(d){if(saveTimer||Date.now()-typedAt<1500||$('fields').contains(document.activeElement))return;
+ document.querySelectorAll('#fields [data-k]').forEach(el=>{const v=(d.details||{})[el.dataset.k]||'';if(el.value!==v)el.value=v})}
+// the item list dialog
+$('listbtn').onclick=()=>{$('listtext').value='';$('listinfo').textContent=D&&D.items.length?'Now: '+D.items.length+' items'+(D.items_from=='file'?' from the settings file (a list here replaces it).':'.'):'';
+ $('listclear').hidden=!(D&&D.items_from=='page');$('listdlg').showModal()};
+$('listcancel').onclick=()=>$('listdlg').close();
+$('listfile').onchange=async e=>{const f=e.target.files[0];if(f){$('listtext').value=await f.text();e.target.value=''}};
+async function sendList(text){const r=await fetch('/items',{method:'POST',body:text});const j=await r.json().catch(()=>({}));
+ if(!r.ok){$('listinfo').textContent='No items found in that. Check it has a title on each line, or a header row.';return}
+ $('listdlg').close();refresh()}
+$('listsave').onclick=()=>{const t=$('listtext').value;if(t.trim())sendList(t)};
+$('listclear').onclick=()=>{if(confirm('Remove the list loaded here? The list in the settings file, if any, is used again.'))sendList('')};
 
 function keyHtml(id,sym,label,cls){return '<button class="key '+cls+'" data-act="'+id+'"><span class="sym">'+sym+'</span>'+label+'</button>'}
 $('acts').onclick=e=>{const b=e.target.closest('button[data-act]');if(!b)return;
@@ -335,7 +367,7 @@ $('acts').onclick=e=>{const b=e.target.closest('button[data-act]');if(!b)return;
 
 // What to do now: one headline, one line of why, and the one key to press.
 function panel(d){
- const nxt=d.items.find(t=>t.id==d.next), what=nxt?nxt.id+' · '+nxt.title:'the next item';
+ const what=nameOf(d.details,'the next item');
  let cls='',glyph='',head='',sub='',acts='';
  switch(d.step){
   case 'recording': cls='rec';glyph='●';head='Recording';
@@ -377,7 +409,7 @@ function standbyTick(){
  const grace=D.step=='press_play'&&Date.now()<sb.at+sb.cycle+5000;
  if(D.step!='standby'&&!grace){sb=null;return}
  const t=Date.now(),from=sb.at+1000,to=sb.at+sb.cycle-2000,ok=t>=from&&t<to;
- const nxt=D.items.find(x=>x.id==D.next),what=nxt?nxt.id+' · '+nxt.title:'the next item';
+ const what=nameOf(D.details,'the next item');
  const extra=D.held&&D.held.length?keyHtml('review','✓','REVIEW '+D.held.length,'small'):'';
  if(ok){const left=Math.ceil((to-t)/1000);
   setPanel('go','▶','Press PLAY now','Cue up '+what+'. Ready for '+(left<60?left+' s':Math.ceil(left/60)+' min')+'.',extra);
@@ -424,7 +456,7 @@ function status(j){
  return['ok','Done'+(where.length?' \u00b7 saved to '+where.join(', '):'')];}
 function takeHtml(j){
  const [cls,text]=status(j), n=esc(j.name);
- const title=j.id?'<b>'+esc(j.id)+'</b>'+esc(j.title):'Unlisted capture';
+ const title=j.id&&j.id!=j.title?'<b>'+esc(j.id)+'</b>'+esc(j.title):j.title?esc(j.title):'Untitled capture';
  if(cls=='aside')return '<div class="cap aside"><div><div class="cap-title">'+title+'</div><div class="cap-status">'+esc(text)+'</div></div></div>';
  const meta=[when(j.added),j.destination?'to '+esc(j.destination):'',damage(j)].filter(Boolean).join(' \u00b7 ');
  const side=cls=='wait'?'<div class="cap-side"><button class="lbtn keep" data-n="'+n+'" data-a="approve">\u2713 Keep</button>'+
@@ -449,16 +481,10 @@ async function refresh(){
    press_play:['READY','',false],press_start:['STOP','',false],plug_device:['NO DEV','err',false],connect_disk:['NO DISK','err',false],standby:['STANDBY','',false]};
   const m=modes[d.step]||['----','',false]; if(d.step!='standby')setMode(...m);
   $('ctr').textContent=r?fmt(r.elapsed):'-:--:--'; $('counter').className='counter'+(r?'':' idle');
-  $('reels').className='reels'+(r&&!r.frozen?' spin':'');
-  // a VHS tape for video; an audio cassette when the item's format says it's audio
-  const cur=d.items.find(t=>t.id==(r&&d.item?d.item.split(':')[0]:d.next));
-  const audio=/audio|cassette|micro.?cassette/i.test(cur&&cur.format||'');
-  $('vhs').hidden=audio; $('audiocassette').hidden=!audio;
-  const it=r&&d.item?d.item:(d.items.find(t=>t.id==d.next)?d.next+' '+d.items.find(t=>t.id==d.next).title:'');
-  $('item').innerHTML=r?'<b>NOW</b>'+esc(d.item||'UNLISTED'):it?'<b>NEXT</b>'+esc(it):(d.items.length?'<b>NEXT</b>UNLISTED':'');
+  const it=nameOf(d.details,'');
+  $('item').innerHTML=r?'<b>NOW</b>'+esc(d.item||'UNTITLED'):it?'<b>NEXT</b>'+esc(it):'';
   lamp('l-video',d.signal===true||!!r); lamp('l-audio',!!d.audio||(r&&r.peak_db!=null)); lamp('l-disk',!!d.card);
   lamp('l-moving',d.step=='wait'); lamp('l-upload',!!d.upload_progress&&d.step!='wait');
-  lamp('l-review',!!(d.held&&d.held.length));
   const asp=r?r.aspect:d.aspect; lamp('l-wide',asp=='16:9'); $('crt').classList.toggle('wide',asp=='16:9');
   [...$('aspect').children].forEach(b=>{b.classList.toggle('on',b.dataset.v==asp);b.disabled=!!r});
   // panel
@@ -473,9 +499,12 @@ async function refresh(){
   $('dmg').innerHTML=r?'So far: '+damage({damage:r.damage}):'';
   // next item
   if(itemsKey!==JSON.stringify(d.items)){itemsKey=JSON.stringify(d.items);
-   $('next').innerHTML=d.items.map(t=>'<option value="'+esc(t.id)+'">'+esc(t.id+'  '+t.title)+'</option>').join('')+'<option value="">Unlisted</option>'}
+   $('next').innerHTML=d.items.map(t=>'<option value="'+esc(t.id)+'">'+esc(t.id+'  '+t.title)+'</option>').join('')+'<option value="">Not on the list</option>'}
   if(document.activeElement!==$('next'))$('next').value=d.next||'';
-  const canPick=!r&&d.items.length>0; $('chanbox').hidden=!canPick;
+  $('pick').hidden=!d.items.length;
+  $('detlbl').textContent=r?'This capture':'Next capture';
+  $('dethint').textContent=r?'Changes rename its files when it finishes.':'';
+  fillDetails(d);
   $('start').disabled=!!r||!!d.standby||d.step=='finishing'; $('stop').disabled=!r&&!d.standby;
   $('start').classList.toggle('primary',d.step=='press_start');
   // captures

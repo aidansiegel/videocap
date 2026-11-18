@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "videocap"
-version = "0.0.1a1"
+version = "0.0.1a2"
 description = "Unattended capture from analog video sources: lossless masters and MP4s, for whole collections"
 readme = "README.md"
 license = "GPL-3.0-or-later"

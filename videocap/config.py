@@ -16,6 +16,7 @@ DEFAULTS = {
     # --- the station
     "STATION_NAME": "",            # names this station in reports and hooks; blank = this machine's host name
     "WEB_PORT": "80",
+    "NETWORK_NAME": "videocap",    # the page is at http://videocap.local/ (videocap-2.local if taken); blank = don't announce
     "LEDS": "auto",                # auto = use a Raspberry Pi's ACT/PWR LEDs if there are any; none = leave them alone
     "PAUSE_UNITS": "",             # systemd units frozen while recording (other heavy jobs on the same machine)
 
