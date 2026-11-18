@@ -20,7 +20,7 @@ html{background:var(--chassis)}
 body{margin:0;color:var(--text);font:14px/1.4 var(--sans);
  background:repeating-linear-gradient(90deg,rgba(255,255,255,.012) 0 1px,transparent 1px 3px),
             linear-gradient(180deg,#1a1b1f 0%,#121316 100%) fixed;min-height:100vh}
-main{max-width:720px;margin:0 auto;padding:14px 16px 40px;display:flex;flex-direction:column;zoom:.9}
+main{max-width:720px;margin:0 auto;padding:14px 16px 40px;display:flex;flex-direction:column;zoom:.95}
 /* one column on a phone, in the order you need things: display, what to do, the deck, takes; two side by side when
    there's room: the deck on the left, what to do and the takes on the right */
 .col{display:contents}
@@ -42,9 +42,9 @@ main{max-width:720px;margin:0 auto;padding:14px 16px 40px;display:flex;flex-dire
  .col-deck .crt,.col-deck .crt.wide{max-width:none}
  .col-deck .deck{margin-top:14px}
  /* on a wide screen the pane runs to near the bottom of the window (lengths here are scaled by main's zoom, the
-    window's height isn't: hence 100vh / .9) */
+    window's height isn't: hence 100vh / .95) */
  .col-side{position:sticky;top:12px}
- .col-side #tapes{max-height:calc(111vh - 190px);min-height:200px}
+ .col-side #tapes{max-height:calc(105vh - 190px);min-height:200px}
 }
 button,select{font:inherit;color:inherit}
 
