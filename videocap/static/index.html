@@ -39,7 +39,7 @@ main{max-width:720px;margin:0 auto;padding:14px 16px 40px;display:flex;flex-dire
  main>.now .advice{grid-column:2;margin-top:6px;padding-top:6px}
  .col-side .takes{margin-top:14px}
  .col{display:flex;flex-direction:column;min-width:0}
- .col-deck .crt{max-width:none}
+ .col-deck .crt,.col-deck .crt.wide{max-width:none}
  .col-deck .deck{margin-top:14px}
  /* on a wide screen the pane runs to the bottom of the window, leaving room for Help below it */
  .col-side{position:sticky;top:12px}
@@ -130,7 +130,10 @@ button,select{font:inherit;color:inherit}
  box-shadow:0 1px 0 rgba(255,255,255,.05) inset}
 .crt{position:relative;border-radius:12px;overflow:hidden;background:#000;aspect-ratio:4/3;max-width:440px;margin:0 auto;border:5px solid #0b0c0d;
  box-shadow:0 0 0 1px #2c2f34,inset 0 0 40px rgba(0,0,0,.8)}
-.crt img{width:100%;height:100%;object-fit:contain;display:block}
+.crt img{width:100%;height:100%;object-fit:fill;display:block}
+/* widescreen: a 16:9 screen, and the squeezed picture stretched back across it */
+.crt.wide{aspect-ratio:16/9;max-width:560px}
+.crt{transition:aspect-ratio .25s}
 .crt::after{content:"";position:absolute;inset:0;pointer-events:none;
  background:repeating-linear-gradient(0deg,rgba(0,0,0,.16) 0 1px,transparent 1px 3px),radial-gradient(ellipse at center,transparent 60%,rgba(0,0,0,.45))}
 .crt .blank{position:absolute;inset:0;display:grid;place-items:center;font:700 14px var(--mono);letter-spacing:.2em;color:#3d5bd6;
@@ -252,7 +255,7 @@ details b{color:var(--text)}
 <div class="col col-deck">
 
 <section class="deck">
- <div class="crt"><img id="snap" alt="Live picture while recording" hidden><div class="blank" id="blank">NO PICTURE</div></div>
+ <div class="crt" id="crt"><img id="snap" alt="Live picture while recording" hidden><div class="blank" id="blank">NO PICTURE</div></div>
  <div class="meter"><span>L+R</span><div class="segs" id="segs"></div><span id="db">-- dB</span></div>
  <div class="dmg" id="dmg"></div>
  <div id="chanbox">
@@ -456,7 +459,7 @@ async function refresh(){
   lamp('l-video',d.signal===true||!!r); lamp('l-audio',!!d.audio||(r&&r.peak_db!=null)); lamp('l-disk',!!d.card);
   lamp('l-moving',d.step=='wait'); lamp('l-upload',!!d.upload_progress&&d.step!='wait');
   lamp('l-review',!!(d.held&&d.held.length));
-  const asp=r?r.aspect:d.aspect; lamp('l-wide',asp=='16:9');
+  const asp=r?r.aspect:d.aspect; lamp('l-wide',asp=='16:9'); $('crt').classList.toggle('wide',asp=='16:9');
   [...$('aspect').children].forEach(b=>{b.classList.toggle('on',b.dataset.v==asp);b.disabled=!!r});
   // panel
   if(d.standby)sb={at:Date.now()-d.standby.age*1000,cycle:d.standby.cycle*1000};
