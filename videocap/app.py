@@ -772,6 +772,18 @@ class App:
                                                   else "no more masters"))
         return s
 
+    @staticmethod
+    def time_zone():
+        """This machine's time zone: its name (America/New_York) if it has one, and its abbreviation now (EST)."""
+        name = os.environ.get("TZ", "").lstrip(":")
+        if not name:
+            name = hardware.read("/etc/timezone")
+        if not name:
+            with contextlib.suppress(OSError):
+                link = os.path.realpath("/etc/localtime")
+                name = link.split("zoneinfo/", 1)[1] if "zoneinfo/" in link else ""
+        return name, datetime.now().astimezone().tzname()
+
     def address(self):
         """The page's address on the network, once it's announced."""
         a = getattr(self, "announcer", None)
@@ -781,7 +793,8 @@ class App:
     def status(self):
         rec = self.rec
         mfree = self.masters_free()
-        d = {"station": self.station(), "address": self.address(), "step": self.step(), "held": self.queue.held(), "warnings": self.warnings(mfree),
+        tz, tz_abbr = self.time_zone()
+        d = {"station": self.station(), "address": self.address(), "now": time.time(), "tz": tz, "tz_abbr": tz_abbr, "step": self.step(), "held": self.queue.held(), "warnings": self.warnings(mfree),
              "state": self.state, "message": self.message, "last": self.last_result,
              "advice": self.advice(mfree), "masters_free_gb": mfree and round(mfree),
              "master_gb": self.f("MASTER_MIN_FREE_GB"), "profile": self.conf["PROFILE"],

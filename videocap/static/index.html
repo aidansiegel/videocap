@@ -50,6 +50,15 @@ button,select{font:inherit;color:inherit}
 
 /* --- brand strip */
 .brand{position:relative;display:flex;align-items:baseline;justify-content:center;gap:12px;margin:-8px 2px 10px}
+/* the station's clock and time zone, top left */
+.clock{position:absolute;left:0;top:50%;transform:translateY(-50%);display:flex;gap:8px;align-items:baseline;white-space:nowrap;
+ font:600 11px/1 var(--mono);letter-spacing:.04em;color:var(--mut)}
+.brand .clock span{font:inherit;letter-spacing:inherit;text-transform:none;color:inherit;text-align:left}
+.brand .clock .tz{color:var(--faint);font-size:10px;letter-spacing:.06em}
+.clock .tzname{display:inline} .clock .tzabbr{display:none}
+@media (max-width:640px){.brand .clock .tzname,.brand .clock .day,.brand .clock .year{display:none}.brand .clock .tzabbr{display:inline}}
+@media (max-width:400px){.clock{font-size:10px;gap:6px}.brand .clock .tz{font-size:9px}}
+@media (max-width:340px){.brand .clock .date{display:none}}
 .helpbtn{position:absolute;right:0;top:50%;transform:translateY(-50%);appearance:none;border:1px solid var(--edge);border-radius:999px;
  background:var(--panel);color:var(--mut);font:700 10px/1 var(--sans);letter-spacing:.14em;text-transform:uppercase;padding:5px 11px;cursor:pointer}
 .helpbtn:hover{color:var(--text);border-color:#4a4e55}
@@ -257,7 +266,9 @@ dialog .btns .lbtn:first-child{margin-right:auto}
 @media (prefers-reduced-motion:reduce){*{animation:none!important}}
 </style></head><body><main>
 
-<div class="brand"><b>videocap</b><button class="helpbtn" id="helpbtn" aria-haspopup="dialog">? Help</button></div>
+<div class="brand"><div class="clock" id="clock" title="The station's clock: captures are named and dated by it" hidden>
+ <span class="date"><span class="day" id="clk-day"></span> <span id="clk-date"></span><span class="year" id="clk-year"></span></span><span id="clk-time"></span>
+ <span class="tz"><span class="tzname" id="clk-tzname"></span><span class="tzabbr" id="clk-tzabbr"></span></span></div><b>videocap</b><button class="helpbtn" id="helpbtn" aria-haspopup="dialog">? Help</button></div>
 
 <section class="vfd" aria-label="Display">
  <div class="vrow">
@@ -407,6 +418,13 @@ $('fields').oninput=()=>{typedAt=Date.now();clearTimeout(saveTimer);saveTimer=se
 $('fields').addEventListener('focusout',()=>{if(saveTimer)saveDetails()});
 function fillDetails(d){if(saveTimer||Date.now()-typedAt<1500||$('fields').contains(document.activeElement))return;
  document.querySelectorAll('#fields [data-k]').forEach(el=>{const v=(d.details||{})[el.dataset.k]||'';if(el.value!==v)el.value=v})}
+// the station's clock, in its own time zone (captures are named by it), ticking between status updates
+let clockSkew=null,clockTz='';
+function tickClock(){if(clockSkew==null)return;const t=new Date(Date.now()+clockSkew);
+ const f=o=>{try{return t.toLocaleString('en-US',Object.assign({timeZone:clockTz||undefined},o))}catch(e){return t.toLocaleString('en-US',o)}};
+ $('clk-day').textContent=f({weekday:'short'});$('clk-date').textContent=f({month:'short',day:'numeric'});$('clk-year').textContent=', '+f({year:'numeric'});
+ $('clk-time').textContent=f({hour:'numeric',minute:'2-digit'}).replace(/\s?([AP]M)/,' $1').toLowerCase();$('clock').hidden=false}
+setInterval(tickClock,1000);
 // help, as an overlay; Esc or a click outside closes it
 $('helpbtn').onclick=()=>$('helpdlg').showModal();
 $('helpclose').onclick=()=>$('helpdlg').close();
@@ -565,6 +583,9 @@ async function refresh(){
  if(fetching)return;fetching=true;lastFetch=Date.now();
  try{const d=await (await fetch('/status.json',{cache:'no-store'})).json();D=d;$('lost').style.display='none';
   document.title=(d.recording?'● ':'')+'videocap';
+  clockSkew=d.now*1000-Date.now(); clockTz=d.tz||'';
+  $('clk-tzname').textContent=(d.tz||'').replace(/_/g,' ')+(d.tz_abbr?' ('+d.tz_abbr+')':'');$('clk-tzabbr').textContent=d.tz_abbr||d.tz||'';
+  tickClock();
   const r=d.recording;
   // display
   const modes={recording:['REC','rec',true],finishing:['FINISH','fin',false],error:['ERROR','err',false],wait:['WAIT','wait',false],
