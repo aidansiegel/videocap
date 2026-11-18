@@ -24,6 +24,9 @@ NTSC and PAL, standard definition: VHS, Hi8, Betamax, LaserDisc, analog cameras 
 - A **USB capture stick** (see [docs/profiles.md](https://github.com/aidansiegel/videocap/blob/main/docs/profiles.md))
 - A **USB disk** for captures
 
+About $225 before the disk: a Pi 5 4 GB ($110), its 27 W power supply ($12), a case with a fan ($20) and a microSD card
+($25) at Micro Center in November 2026, plus a Hauppauge USB-Live2 (about $55).
+
 ## Install
 
 On Raspberry Pi OS, Debian or Ubuntu:
