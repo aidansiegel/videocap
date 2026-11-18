@@ -460,8 +460,7 @@ function panel(d){
    sub='Moving the last master. Cue up '+what+'.';break;
   case 'standby': break; // filled in by the standby clock below
   case 'press_play': cls='go';glyph='▶';head='Press PLAY';
-   sub='Cue up '+what+'.';
-   acts=keyHtml('start','●','REC NOW','small rec');break;
+   sub='Cue up '+what+'. Recording will start when picture is detected.';break;
   case 'press_start': cls='go';glyph='●';head='Press REC, then PLAY';
    sub='Cue up '+what+' first.';acts=keyHtml('start','●','REC','primary rec');break;
   default: head=d.message||'';
