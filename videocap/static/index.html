@@ -20,7 +20,7 @@ html{background:var(--chassis)}
 body{margin:0;color:var(--text);font:14px/1.4 var(--sans);
  background:repeating-linear-gradient(90deg,rgba(255,255,255,.012) 0 1px,transparent 1px 3px),
             linear-gradient(180deg,#1a1b1f 0%,#121316 100%) fixed;min-height:100vh}
-main{max-width:720px;margin:0 auto;padding:14px 16px 40px;display:flex;flex-direction:column}
+main{max-width:720px;margin:0 auto;padding:14px 16px 40px;display:flex;flex-direction:column;zoom:.9}
 /* one column on a phone, in the order you need things: display, what to do, the deck, takes; two side by side when
    there's room: the deck on the left, what to do and the takes on the right */
 .col{display:contents}
@@ -41,9 +41,10 @@ main{max-width:720px;margin:0 auto;padding:14px 16px 40px;display:flex;flex-dire
  .col{display:flex;flex-direction:column;min-width:0}
  .col-deck .crt,.col-deck .crt.wide{max-width:none}
  .col-deck .deck{margin-top:14px}
- /* on a wide screen the pane runs to the bottom of the window, leaving room for Help below it */
+ /* on a wide screen the pane runs to near the bottom of the window (lengths here are scaled by main's zoom, the
+    window's height isn't: hence 100vh / .9) */
  .col-side{position:sticky;top:12px}
- #tapes{max-height:calc(100vh - 270px);min-height:200px}
+ .col-side #tapes{max-height:calc(111vh - 190px);min-height:200px}
 }
 button,select{font:inherit;color:inherit}
 
@@ -289,6 +290,10 @@ dialog .btns .lbtn:first-child{margin-right:auto}
   <span class="sel-side b" data-src="B"><i></i>CAPTURES</span>
  </div>
  <div class="crt" id="crt"><img id="snap" alt="Live picture while recording" hidden><video id="vid" controls playsinline preload="metadata" hidden></video><div class="blank" id="blank">NO PICTURE</div></div>
+ <div class="transport">
+  <button class="key wide rec" id="start"><span class="sym">&#9679;</span>REC</button>
+  <button class="key wide" id="stop"><span class="sym">&#9632;</span>STOP</button>
+ </div>
  <div class="chan" id="capbar" hidden>
   <button class="key small" id="capprev" title="Newer capture" aria-label="Newer capture">&#9664;</button>
   <div id="capname" aria-live="polite"><b>PLAYING</b><span></span></div>
@@ -323,10 +328,6 @@ dialog .btns .lbtn:first-child{margin-right:auto}
  <div class="lbl">Send captures to</div>
  <div class="dest"><select id="dest" aria-label="Send captures to"></select></div>
  <div class="hint" id="desthint"></div>
- <div class="transport">
-  <button class="key wide rec" id="start"><span class="sym">&#9679;</span>REC</button>
-  <button class="key wide" id="stop"><span class="sym">&#9632;</span>STOP</button>
- </div>
 </section>
 </div>
 <div class="col col-side">
