@@ -16,7 +16,7 @@ becomes a lossless master and an MP4, named from your list, with a report of any
 
 NTSC and PAL, standard definition: VHS, Hi8, Betamax, LaserDisc, analog cameras and more.
 
-<img src="https://raw.githubusercontent.com/aidansiegel/videocap/main/docs/web-page.png" width="360" alt="The web page while recording: state, live picture, audio meter, item, elapsed time and damage counts">
+<img src="https://raw.githubusercontent.com/aidansiegel/videocap/main/docs/web-page.png" width="360" alt="The web page while recording: live picture, audio meter, elapsed time, and the capture's title, number, format, date and notes">
 
 ## What you need
 
