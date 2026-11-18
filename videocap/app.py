@@ -786,7 +786,7 @@ class App:
              "advice": self.advice(mfree), "masters_free_gb": mfree and round(mfree),
              "master_gb": self.f("MASTER_MIN_FREE_GB"), "profile": self.conf["PROFILE"],
              "device": self.dev and "%s (%s)" % (self.dev[2], self.dev[0]),
-             "audio": self.audio, "input": self.input_name, "signal": self.signal,
+             "audio": self.audio or (self.dev and self.dev[0] == "test" and "test tone") or None, "input": self.input_name, "signal": self.signal,
              "card": self.card and "%s %s" % (self.card.get("label") or "", self.card.get("fstype")),
              "recording": None, "upload_progress": self.queue.progress,
              "uploads": self.queue.recent(),
