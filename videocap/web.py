@@ -111,6 +111,11 @@ def handler(app):
                 pass  # the browser had what it wanted
 
         def do_POST(self):
+            # only this page may change things: a browser sends Origin on a POST from another site's page, so a page
+            # elsewhere can't press buttons or change settings here behind the viewer's back
+            origin = self.headers.get("Origin")
+            if origin and urllib.parse.urlsplit(origin).netloc != (self.headers.get("Host") or ""):
+                return self.send(403, "text/plain", b"only the station's own page can do that")
             ok = True
             if self.path == "/stop" and app.rec:
                 app.stop_requested = True

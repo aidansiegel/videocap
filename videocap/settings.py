@@ -26,7 +26,8 @@ FIELDS = {
 }
 DEST_FIELDS = {"LABEL": "text", "MASTERS_DIR": "path", "MP4_REMOTE": "remote", "MASTER_REMOTE": "remote"}
 # never somewhere a mistake could damage the system (the station runs as root)
-SYSTEM_DIRS = ("/bin", "/boot", "/dev", "/etc", "/lib", "/proc", "/root", "/run", "/sbin", "/sys", "/usr", "/var")
+SYSTEM_DIRS = ("/bin", "/boot", "/dev", "/etc", "/lib", "/proc", "/root", "/run", "/sbin", "/sys", "/usr", "/var",
+               "/private")  # (/private: where /etc and /var really are on a Mac)
 SETUP_DONE = os.path.join(config.STATE_DIR, "setup-done")
 
 
@@ -99,8 +100,11 @@ def set_timezone(tz):
 
 def check(key, value, conf):
     """The value to store, or raises ValueError with a sentence saying what's wrong."""
-    value = str(value).strip()
-    m = config.DEST_KEY.match(key)
+    value = "" if value is None else str(value).strip()
+    # one printable line, no #: anything else could add a line (a HOOK=, which runs as root) or be cut short
+    if not value.isprintable() or "#" in value:
+        raise ValueError("Keep it on one line, without # or special characters.")
+    m = config.DEST_KEY.fullmatch(key)
     if m:
         if m.group(1) in ("disk", "settings"):
             raise ValueError("That name is taken by a built-in destination.")
@@ -145,9 +149,9 @@ def check(key, value, conf):
 
 
 def check_path(value):
-    p = os.path.normpath(value)
-    if not p.startswith("/") or ".." in value.split("/"):
+    if not value.startswith("/") or ".." in value.split("/"):
         raise ValueError("Use a full path, starting with /, like /mnt/masters.")
+    p = os.path.realpath("/" + os.path.normpath(value).lstrip("/"))
     if p == "/" or any(p == d or p.startswith(d + "/") for d in SYSTEM_DIRS):
         raise ValueError("Pick a folder on a data disk, like /mnt/masters, not a system folder.")
     if not os.path.isdir(p):
@@ -161,7 +165,7 @@ def save(path, updates):
     previous file kept as <file>.bak."""
     try:
         with open(path) as f:
-            lines = f.read().splitlines()
+            lines = f.read().split("\n")
     except FileNotFoundError:
         lines = ["# videocap settings (see videocap.conf.example)"]
     done = set()
@@ -169,6 +173,8 @@ def save(path, updates):
     for line in lines:
         bare = line.split("#", 1)[0].strip()
         key = bare.split("=", 1)[0].strip() if "=" in bare else None
+        if not line and out and not out[-1]:
+            continue  # no runs of blank lines (and none from the file's final newline)
         if key in updates:
             if key in done:
                 continue  # an earlier duplicate was already set: drop this one, so it can't win
@@ -177,6 +183,8 @@ def save(path, updates):
                 continue
             line = "%s=%s" % (key, updates[key])
         out.append(line)
+    while out and not out[-1]:
+        out.pop()
     new = [k for k in updates if k not in done and not (updates[k] == "" and config.DEST_KEY.match(k))]
     if new:
         if not any(line.startswith("# --- Set on the web page") for line in out):

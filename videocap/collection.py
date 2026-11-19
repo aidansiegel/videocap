@@ -26,12 +26,15 @@ def aspect(text):
     return ""
 
 
-def safe_name(text, limit=150):
-    """A file name that works on exFAT, FAT32, NTFS, ext4 and SMB shares."""
-    text = text.replace("/", "-").replace("\u2192", "to").replace("\u2190", "from")
+def safe_name(text, limit=120):
+    """A file name that works on exFAT, FAT32, NTFS, ext4 and SMB shares, with room for the rest of a capture's name
+    (" - captured ... _master_000.mkv") within their 255 bytes. No % (ffmpeg's segment pattern)."""
+    text = text.replace("/", "-").replace("\u2192", "to").replace("\u2190", "from").replace("%", " percent")
     text = BAD_CHARS.sub("", text)
     text = re.sub(r"\s+", " ", text).strip(" .")
-    return text[:limit].rstrip(" .") or "untitled"
+    while len(text.encode("utf-8")) > limit:
+        text = text[:-1]
+    return text.rstrip(" .") or "untitled"
 
 
 # what people call each column, in spreadsheets they already have
@@ -68,10 +71,16 @@ def parse(text):
     text = text.lstrip("\ufeff").strip()
     if not text:
         return []
+    rows = None
     if text.startswith("["):
-        rows = [{HEADER.get(str(k).strip().lower(), str(k).strip().lower()): v for k, v in r.items()}
-                for r in json.loads(text) if isinstance(r, dict)]
-    else:
+        try:
+            data = json.loads(text)
+        except ValueError:
+            data = None  # not JSON after all: a title like "[Home movies] 1990"
+        if isinstance(data, list):
+            rows = [{HEADER.get(str(k).strip().lower(), str(k).strip().lower()): v for k, v in r.items()}
+                    for r in data if isinstance(r, dict)]
+    if rows is None:
         lines = text.splitlines()
         tabs = "\t" in lines[0]
         cells = list(csv.reader(lines, delimiter="\t" if tabs else ","))

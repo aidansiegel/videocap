@@ -5,6 +5,7 @@ starting over every STANDBY_SEC, so the source's first frame lands in a recordin
 sends no picture until its tape moves, and a recording started by the picture misses the first seconds).
 """
 import contextlib
+import csv
 import glob
 import json
 import os
@@ -90,13 +91,17 @@ class App:
         path = PAGE_LIST if os.path.exists(PAGE_LIST) else self.conf["ITEM_LIST"]
         try:
             return collection.load(path)
-        except (OSError, ValueError) as e:
+        except (OSError, ValueError, csv.Error) as e:
             log("couldn't read the item list %s: %s" % (path, e))
             return []
 
     def set_items(self, text):
         """A list pasted or loaded on the page replaces ITEM_LIST; an empty one goes back to ITEM_LIST."""
-        items = collection.parse(text)
+        try:
+            items = collection.parse(text)
+        except (ValueError, csv.Error) as e:
+            log("couldn't read the item list from the page: %s" % e)
+            return None
         if text.strip() and not items:
             return None
         if items:
@@ -129,7 +134,7 @@ class App:
         """Name and describe the next capture, or the one recording now (its files are renamed when it finishes)."""
         if not isinstance(d, dict):
             return False
-        self.details = {k: str(d.get(k, self.details.get(k, "")))[:2000].strip() for k in DETAIL_KEYS}
+        self.details = {k: str(d.get(k, self.details.get(k, "")) or "")[:2000].strip() for k in DETAIL_KEYS}
         self.save_state()
         rec = self.rec
         if rec:
@@ -821,8 +826,10 @@ class App:
         except OSError as e:
             return {"errors": {"": "Couldn't save the settings file (%s): %s" % (self.conf_file(), e.strerror)}}
         log("settings changed on the web page: %s" % ", ".join("%s=%s" % kv for kv in clean.items()))
+        if self.rec and not self.rec.standby:
+            return {"errors": {}}  # a recording keeps the settings it started with: the loop reloads them after it
         self.conf = config.load(self.conf_path)
-        if self.rec and self.rec.standby:
+        if self.rec:
             self.restart_standby = True  # a standby recording becomes the capture: start it over with the new settings
         return {"errors": {}}
 

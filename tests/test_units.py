@@ -96,6 +96,12 @@ class CollectionTest(unittest.TestCase):
         self.assertEqual([(t["id"], t["title"]) for t in items],
                          [("001", "Christmas 1993"), ("003", "Grandpa's 75th, Oct '94")])
 
+    def test_odd_lists_and_names(self):
+        self.assertEqual([t["title"] for t in collection.parse("[Home movies] 1990\nSummer")],
+                         ["[Home movies] 1990", "Summer"])  # brackets, not JSON
+        self.assertNotIn("%", collection.safe_name("100% Family"))
+        self.assertLessEqual(len(collection.safe_name("\u0436" * 200).encode()), 120)  # ext4 counts bytes
+
     def test_typed_title_only(self):
         t = collection.make_item({"id": "", "title": "Dad's retirement party", "notes": ""})
         self.assertEqual(t["file"], "Dad's retirement party")
@@ -265,6 +271,15 @@ class SettingsTest(unittest.TestCase):
             settings.check("DEST.nas.MASTERS_DIR", "/mnt/../etc", c)
         with self.assertRaises(ValueError):
             settings.check("DEST.disk.LABEL", "mine", c)  # built-in
+        for sneaky in ("a\nHOOK=/tmp/x.sh", "a\u2028HOOK=/tmp/x.sh", "a\x85HOOK=/x", "a\rHOOK=/x", "a # b"):
+            with self.assertRaises(ValueError):  # a second line would be a HOOK=, run as root
+                settings.check("COLLECTION", sneaky, c)
+        with self.assertRaises(ValueError):
+            settings.check("DEST.nas.MP4_REMOTE", "nas:v\nHOOK=/tmp/x.sh", c)
+        with self.assertRaises(ValueError):
+            settings.check("DEST.nas.MASTERS_DIR", "//etc", c)
+        with self.assertRaises(ValueError):
+            settings.check("DEST.a.LABEL\n", "x", c)
         self.assertEqual(settings.check("NETWORK_NAME", "Den-VCR.local", c), "den-vcr")
         self.assertEqual(settings.check("MASTER_REVIEW", "on", c), "1")
         with tempfile.TemporaryDirectory(dir=os.path.dirname(os.path.abspath(__file__))) as d:  # not under /var

@@ -140,7 +140,7 @@ def unknown_keys(conf):
 DEST_KEYS = ("MASTERS_DIR", "MP4_REMOTE", "MASTER_REMOTE", "MASTER_REVIEW", "REPLACE_EXISTING", "REMOTE_MIN_FREE_GB",
              "UPLOAD_BWLIMIT")
 WHERE = ("MASTERS_DIR", "MP4_REMOTE", "MASTER_REMOTE")
-DEST_KEY = re.compile(r"^DEST\.([A-Za-z0-9_-]+)\.([A-Z0-9_]+)$")
+DEST_KEY = re.compile(r"^DEST\.([A-Za-z0-9_-]+)\.([A-Z0-9_]+)\Z")
 
 
 def destinations(conf):
