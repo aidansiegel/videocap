@@ -34,12 +34,15 @@ On Raspberry Pi OS, Debian or Ubuntu:
 ```bash
 git clone https://github.com/aidansiegel/videocap.git && cd videocap
 sudo ./install.sh
-sudo nano /etc/videocap/videocap.conf
 ```
 
-Then open **http://videocap.local/** on a phone or computer on the same network.
+Then open **http://videocap.local/** on a phone or computer on the same network: a setup screen walks you through
+the rest (TV standard, capture stick, disk, where captures go), with no settings file to edit.
 
 To try it without hardware, run `./demo.sh` on Linux or a Mac (needs ffmpeg and rclone).
+
+**Not a Linux person?** Ask an AI coding agent (Codex, Claude Code...) to set it up for you: point it at
+[AGENTS.md](https://github.com/aidansiegel/videocap/blob/main/AGENTS.md), which tells it how, and what never to touch.
 
 ## More
 
