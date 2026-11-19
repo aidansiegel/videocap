@@ -50,7 +50,8 @@ main{max-width:720px;margin:0 auto;padding:14px 16px 40px;display:flex;flex-dire
 button,select{font:inherit;color:inherit}
 
 /* --- brand strip */
-.brand{position:relative;display:flex;align-items:baseline;justify-content:center;gap:12px;margin:-8px 2px 10px}
+.brand{position:relative;display:flex;align-items:center;justify-content:center;gap:12px;margin:-4px 2px 10px;min-height:36px}
+@media (pointer:coarse){.brand{min-height:46px}}
 /* the station's clock and time zone, top left */
 .clock{position:absolute;left:0;top:50%;transform:translateY(-50%);display:flex;gap:8px;align-items:baseline;white-space:nowrap;
  font:600 11px/1 var(--mono);letter-spacing:.04em;color:var(--mut)}
@@ -60,10 +61,18 @@ button,select{font:inherit;color:inherit}
 @media (max-width:640px){.brand .clock .tzname,.brand .clock .day,.brand .clock .year{display:none}.brand .clock .tzabbr{display:inline}}
 @media (max-width:400px){.clock{font-size:10px;gap:6px}.brand .clock .tz{font-size:9px}}
 @media (max-width:340px){.brand .clock .date{display:none}}
-.brand-btns{position:absolute;right:0;top:50%;transform:translateY(-50%);display:flex;gap:6px}
-.helpbtn{appearance:none;border:1px solid var(--edge);border-radius:999px;
- background:var(--panel);color:var(--mut);font:700 10px/1 var(--sans);letter-spacing:.14em;text-transform:uppercase;padding:5px 11px;cursor:pointer}
-.helpbtn:hover{color:var(--text);border-color:#4a4e55}
+.brand-btns{position:absolute;right:0;top:50%;transform:translateY(-50%);display:flex;gap:8px}
+.helpbtn{appearance:none;border:1px solid #3a3e44;border-radius:7px;min-height:34px;min-width:80px;padding:0 16px;
+ background:linear-gradient(180deg,#34373d,#25272b);color:var(--text);font:700 13px/1 var(--sans);letter-spacing:.06em;cursor:pointer;
+ box-shadow:0 1px 0 rgba(255,255,255,.1) inset,0 2px 0 #0a0b0c}
+.helpbtn:hover{border-color:#5a5f66}
+.helpbtn:focus-visible{outline:2px solid var(--vfd);outline-offset:2px}
+@media (pointer:coarse){.helpbtn{min-height:44px}}
+/* phones: the name on its own line, then the clock and the two buttons */
+@media (max-width:640px){.brand{flex-wrap:wrap;row-gap:6px;min-height:0;margin:-6px 0 10px}
+ .brand b{flex:0 0 100%;text-align:center;order:-1}
+ .brand .clock,.brand-btns{position:static;transform:none}
+ .brand .clock{flex:1;min-width:0} .brand-btns{flex:none}}
 .brand b{font:800 10pt/1 var(--sans);letter-spacing:.14em;text-transform:uppercase;
  background:linear-gradient(180deg,#f4f4f4,#9ea1a6 55%,#d8dadd);-webkit-background-clip:text;background-clip:text;color:transparent}
 .brand span{font:600 11px/1 var(--sans);letter-spacing:.18em;text-transform:uppercase;color:var(--faint);text-align:right}
@@ -308,7 +317,7 @@ dialog .btns .lbtn:first-child{margin-right:auto}
 
 <div class="brand"><div class="clock" id="clock" title="The station's clock: captures are named and dated by it" hidden>
  <span class="date"><span class="day" id="clk-day"></span> <span id="clk-date"></span><span class="year" id="clk-year"></span></span><span id="clk-time"></span>
- <span class="tz"><span class="tzname" id="clk-tzname"></span><span class="tzabbr" id="clk-tzabbr"></span></span></div><b>videocap</b><div class="brand-btns"><button class="helpbtn" id="setupbtn" aria-haspopup="dialog">Setup</button><button class="helpbtn" id="helpbtn" aria-haspopup="dialog">? Help</button></div></div>
+ <span class="tz"><span class="tzname" id="clk-tzname"></span><span class="tzabbr" id="clk-tzabbr"></span></span></div><b>videocap</b><div class="brand-btns"><button class="helpbtn" id="setupbtn" aria-haspopup="dialog">Setup</button><button class="helpbtn" id="helpbtn" aria-haspopup="dialog">Help</button></div></div>
 
 <section class="vfd" aria-label="Display">
  <div class="vrow">
