@@ -256,7 +256,7 @@ dialog .btns .lbtn:first-child{margin-right:auto}
 .checks li{display:grid;grid-template-columns:22px 1fr;gap:8px;align-items:start;font-size:13px;line-height:1.4}
 .checks .mark{font:700 14px/1.3 var(--mono);text-align:center}
 .checks .ok .mark{color:var(--play)} .checks .no .mark{color:#ff6b5e} .checks .wait .mark{color:var(--amber)}
-.checks b{color:var(--text)} .checks span.why{color:var(--mut)}
+.checks b{color:var(--text)} .checks span.why{color:var(--mut)} .checks a{color:var(--vfd)}
 .sform{display:grid;gap:12px}
 .sfield{display:grid;gap:4px;min-width:0}
 .sfield>label,.sfield>.flabel{font:700 10px var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--faint)}
@@ -271,11 +271,6 @@ dialog .btns .lbtn:first-child{margin-right:auto}
 .radios input{width:18px;height:18px;accent-color:var(--vfd)}
 .sfield>label.check{display:flex;align-items:center;gap:10px;font:14px var(--sans);letter-spacing:0;text-transform:none;color:var(--text);min-height:40px;cursor:pointer}
 #adddest{justify-self:start}
-.addr{display:flex;align-items:center;min-height:40px;border-radius:6px;border:1px solid #4a4e55;background:#0b0d0d;padding:0 10px;
- font:14px var(--mono);color:var(--mut)}
-.addr:focus-within{outline:2px solid var(--vfd);outline-offset:2px}
-.sfield .addr input[type=text]{border:0;background:none;min-height:38px;padding:0 2px;flex:0 1 auto;min-width:9ch;max-width:100%;font:14px var(--mono);color:var(--vfd);outline:none}
-.addr{cursor:text}
 .check input{width:18px;height:18px;accent-color:var(--vfd)}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 @media (max-width:560px){.row2{grid-template-columns:1fr}}
@@ -518,21 +513,12 @@ function renderSetup(){const v=S.values,first=!S.setup_done;
   tz+
   '<div class="row2">'+field('COLLECTION','Collection name','<input type="text" id="s-COLLECTION" value="'+esc(v.COLLECTION)+'" placeholder="The Smith family tapes" autocomplete="off">')+
   field('DIGITIZED_BY','Digitized by','<input type="text" id="s-DIGITIZED_BY" value="'+esc(v.DIGITIZED_BY)+'" placeholder="Your name (optional)" autocomplete="off">')+'</div>'+
-  field('NETWORK_NAME','Web address','<div class="addr"><span aria-hidden="true">http://</span><input type="text" id="s-NETWORK_NAME" value="'+esc(v.NETWORK_NAME)+
-   '" autocomplete="off" spellcheck="false" aria-describedby="h-NETWORK_NAME"><span aria-hidden="true">.local'+(S.port&&S.port!='80'?':'+esc(S.port):'')+'/</span></div>',
-   '<span id="nethint"></span>')+
   '<div class="sfield" data-key="MASTER_REVIEW"><label class="check"><input type="checkbox" id="s-MASTER_REVIEW"'+(v.MASTER_REVIEW=='1'?' checked':'')+
    '>Hold each master until I’ve watched it and pressed Keep</label><p class="err" id="e-MASTER_REVIEW" role="alert" hidden></p><p class="saved" id="ok-MASTER_REVIEW" hidden>Saved</p></div>';
- renderDests();renderChecks();netHint();$('s-NETWORK_NAME').addEventListener('input',netHint);
+ renderDests();renderChecks();
  $('setupwhere').textContent=S.writable?'Saved in the station’s settings file.':'';
  if($('usesug'))$('usesug').onclick=()=>{$('s-PROFILE').value=S.suggested_profile;saveField('PROFILE',S.suggested_profile)};
 }
-// what the hostname means for the page's address, as it's typed
-document.addEventListener('click',e=>{const a=e.target.closest('.addr');if(a&&e.target.tagName!='INPUT')a.querySelector('input').focus()});
-function netHint(){const i=$('s-NETWORK_NAME');if(i)i.style.width=Math.max(9,i.value.length+1)+'ch';
- const n=((i||{}).value||'').trim(),port=S.port&&S.port!='80'?':'+S.port:'';
- $('nethint').textContent=n?'Type this into a browser on the same Wi-Fi to open this page. A change takes effect after a restart.':
-  'Left blank, the page is at http://'+S.host+'.local'+port+'/ instead.'}
 function renderDests(){const v=S.values,ds=S.destinations;
  const where=d=>[d.MASTERS_DIR&&'masters disk '+d.MASTERS_DIR,d.MP4_REMOTE&&'MP4s to '+d.MP4_REMOTE,d.MASTER_REMOTE&&'masters to '+d.MASTER_REMOTE].filter(Boolean).join(' · ')||'nowhere yet';
  $('dform').innerHTML=
@@ -586,7 +572,8 @@ function renderChecks(){if(!S||!$('setupdlg').open)return;const d=D||{},items=[]
  (d.audio||S.audio)?add('ok','Sound:','found'):add('no','Sound:','the capture stick’s sound isn’t showing up. Unplug the stick and plug it back in.');
  d.card?add('ok','Capture disk:',esc(d.card)):add('no','Capture disk:','not found. Plug in a USB disk'+(S.values.CARD_LABEL?' named '+esc(S.values.CARD_LABEL):'')+'.');
  d.signal===true||d.recording?add('ok','Picture:','coming in'+(d.input&&d.input!='test'?' on '+esc(d.input):'')):add('wait','Picture:','none yet. Play a tape (or turn the source on) to check the cables.');
- d.address?add('ok','Address:',esc(d.address)):add('wait','Address:','this page works at the station’s own name or IP address; videocap.local needs avahi-utils.');
+ const port=S.port&&S.port!='80'?':'+S.port:'',url=d.address||('http://'+S.host+'.local'+port+'/');
+ add('ok','This page:','open it from any phone or computer on your Wi-Fi at <a href="'+esc(url)+'">'+esc(url)+'</a>. Bookmark it.');
  $('checks').innerHTML=items.join('')}
 $('setupbtn').onclick=()=>openSetup(false);
 $('setupclose').onclick=()=>$('setupdlg').close();

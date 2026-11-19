@@ -22,7 +22,6 @@ FIELDS = {
     "COLLECTION": ("text", "Collection name"),
     "DIGITIZED_BY": ("text", "Digitized by"),
     "MASTER_REVIEW": ("bool", "Review masters before they're sent"),
-    "NETWORK_NAME": ("name", "Web address"),
     "DEFAULT_DESTINATION": ("dest", "Where captures go"),
 }
 DEST_FIELDS = {"LABEL": "text", "MASTERS_DIR": "path", "MP4_REMOTE": "remote", "MASTER_REMOTE": "remote"}

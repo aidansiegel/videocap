@@ -280,7 +280,8 @@ class SettingsTest(unittest.TestCase):
             settings.check("DEST.nas.MASTERS_DIR", "//etc", c)
         with self.assertRaises(ValueError):
             settings.check("DEST.a.LABEL\n", "x", c)
-        self.assertEqual(settings.check("NETWORK_NAME", "Den-VCR.local", c), "den-vcr")
+        with self.assertRaises(ValueError):
+            settings.check("NETWORK_NAME", "den-vcr", c)  # settings file only now
         self.assertEqual(settings.check("MASTER_REVIEW", "on", c), "1")
         with tempfile.TemporaryDirectory(dir=os.path.dirname(os.path.abspath(__file__))) as d:  # not under /var
             self.assertEqual(settings.check("DEST.nas.MP4_REMOTE", d + "/", c), os.path.normpath(d))
