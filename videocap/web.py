@@ -3,6 +3,10 @@
     GET  /              the page (static/index.html)
     GET  /status.json   everything the page shows
     GET  /snap.jpg      the latest snapshot while recording
+    GET  /settings.json the setup screen: settings the page may change, their choices, and what's plugged in
+    POST /settings      body: JSON {KEY: value}: written to the settings file, all or none; answers {"errors": {}}
+    POST /setup-done    the first-run setup is finished (the page stops opening it by itself)
+    POST /timezone      body: a time zone name (America/New_York): set this machine's time zone
     GET  /watch/NAME    a listed capture's MP4 (with byte ranges, for seeking); 404 if its disk isn't here
     POST /start         record now (Start, then press play)
     POST /stop          stop recording (a take stopped by hand is held for review)
@@ -22,6 +26,8 @@ import re
 import time
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+from . import settings
 
 PAGE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "index.html")
 
@@ -57,6 +63,8 @@ def handler(app):
                         self.send(200, "image/jpeg", f.read())
                 except OSError:
                     self.send(404, "text/plain", b"no picture yet")
+            elif path == "/settings.json":
+                self.send(200, "application/json", json.dumps(app.settings_view()).encode())
             elif path.startswith("/watch/"):
                 self.watch(urllib.parse.unquote(path[len("/watch/"):]))
             else:
@@ -130,6 +138,17 @@ def handler(app):
                     ok = app.set_details(json.loads(self.body(20000) or "{}"))
                 except ValueError:
                     ok = False
+            elif self.path == "/settings":
+                try:
+                    res = app.change_settings(json.loads(self.body(20000) or "{}"))
+                except ValueError:
+                    res = {"errors": {"": "That wasn't a list of settings."}}
+                return self.send(200 if not res["errors"] else 422, "application/json", json.dumps(res).encode())
+            elif self.path == "/setup-done":
+                settings.mark_setup_done()
+            elif self.path == "/timezone":
+                err = settings.set_timezone(self.body(100))
+                return self.send(422 if err else 200, "application/json", json.dumps({"error": err}).encode())
             elif self.path == "/items":
                 n = app.set_items(self.body(2_000_000))
                 body = json.dumps({"count": n}).encode()

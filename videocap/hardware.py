@@ -114,8 +114,15 @@ def find_video(conf):
         real = os.path.realpath(p + "/device")
         if "/usb" not in real or read(p + "/index") not in ("", "0"):
             continue
-        return ("/dev/" + os.path.basename(p), usb_root(real), read(p + "/name"))
+        dev = "/dev/" + os.path.basename(p)
+        return (dev, usb_root(real), card_name(dev) or read(p + "/name"))
     return None
+
+
+def card_name(dev):
+    """What the capture device calls itself (Hauppauge USB Live2), from v4l2-ctl; "" if it can't say."""
+    m = re.search(r"Card type\s*:\s*(.+)", sh("v4l2-ctl", "-d", dev, "--info"))
+    return m.group(1).strip() if m else ""
 
 
 def find_audio(conf, usbdev):

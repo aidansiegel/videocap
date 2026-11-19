@@ -17,7 +17,7 @@ import threading
 import time
 from datetime import datetime
 
-from . import collection, config, hardware, mdns
+from . import collection, config, hardware, mdns, settings
 from .hardware import log
 from .queue import Queue
 from .recording import Recording
@@ -771,6 +771,60 @@ class App:
                   "full too, recording stops." % ("one more master" if n == 1 else "%d more masters" % n if n
                                                   else "no more masters"))
         return s
+
+    # --- settings on the page -----------------------------------------------------------
+
+    def conf_file(self):
+        return self.conf_path or config.CONF_PATH
+
+    def settings_view(self):
+        """Everything the page's setup screen shows: the settings it may change, the choices for each, and what's
+        plugged in."""
+        c = self.conf
+        named = [d for d in config.destinations(c) if d["id"] not in ("disk", "settings")]
+        dev_name = self.dev and self.dev[2] or ""
+        folder = os.path.dirname(os.path.abspath(self.conf_file()))
+        return {
+            "values": {k: c.get(k, "") for k in settings.FIELDS},
+            "destinations": [dict({"id": d["id"], "label": d["label"]}, **{k: d["set"].get(k, "") for k in config.WHERE})
+                             for d in named],
+            "all_destinations": [{"id": d["id"], "label": d["label"]} for d in config.destinations(c)],
+            "profiles": [{"id": p["id"], "label": p["label"]} for p in settings.profiles()],
+            "suggested_profile": settings.suggest_profile(dev_name) if dev_name else "",
+            "disks": settings.disks() if not c["TEST_CARD_DIR"] else [{"label": "test folder", "fstype": "folder",
+                                                                       "path": c["TEST_CARD_DIR"], "size_gb": None,
+                                                                       "free_gb": None}],
+            "remotes": settings.remotes(c),
+            "timezones": settings.timezones(),
+            "time_zone": self.time_zone()[0],
+            "device": dev_name, "audio": bool(self.audio or c["TEST_SOURCE"]), "signal": self.signal,
+            "card": self.card and {"label": self.card.get("label") or "", "fstype": self.card.get("fstype")},
+            "address": self.address(), "setup_done": settings.setup_done(),
+            "writable": os.access(self.conf_file() if os.path.exists(self.conf_file()) else folder, os.W_OK),
+            "test": bool(c["TEST_SOURCE"]),
+        }
+
+    def change_settings(self, updates):
+        """Check every value, then write them all to the settings file, or none: {"errors": {key: sentence}}."""
+        if not isinstance(updates, dict) or not updates:
+            return {"errors": {"": "Nothing to change."}}
+        clean, errors = {}, {}
+        for k, v in updates.items():
+            try:
+                clean[k] = settings.check(k, v, self.conf)
+            except ValueError as e:
+                errors[k] = str(e)
+        if errors:
+            return {"errors": errors}
+        try:
+            settings.save(self.conf_file(), clean)
+        except OSError as e:
+            return {"errors": {"": "Couldn't save the settings file (%s): %s" % (self.conf_file(), e.strerror)}}
+        log("settings changed on the web page: %s" % ", ".join("%s=%s" % kv for kv in clean.items()))
+        self.conf = config.load(self.conf_path)
+        if self.rec and self.rec.standby:
+            self.restart_standby = True  # a standby recording becomes the capture: start it over with the new settings
+        return {"errors": {}}
 
     @staticmethod
     def time_zone():

@@ -16,6 +16,7 @@
 }
 *{box-sizing:border-box}
 [hidden]{display:none!important}
+.visually-hidden{position:absolute!important;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 html{background:var(--chassis)}
 body{margin:0;color:var(--text);font:14px/1.4 var(--sans);
  background:repeating-linear-gradient(90deg,rgba(255,255,255,.012) 0 1px,transparent 1px 3px),
@@ -59,7 +60,8 @@ button,select{font:inherit;color:inherit}
 @media (max-width:640px){.brand .clock .tzname,.brand .clock .day,.brand .clock .year{display:none}.brand .clock .tzabbr{display:inline}}
 @media (max-width:400px){.clock{font-size:10px;gap:6px}.brand .clock .tz{font-size:9px}}
 @media (max-width:340px){.brand .clock .date{display:none}}
-.helpbtn{position:absolute;right:0;top:50%;transform:translateY(-50%);appearance:none;border:1px solid var(--edge);border-radius:999px;
+.brand-btns{position:absolute;right:0;top:50%;transform:translateY(-50%);display:flex;gap:6px}
+.helpbtn{appearance:none;border:1px solid var(--edge);border-radius:999px;
  background:var(--panel);color:var(--mut);font:700 10px/1 var(--sans);letter-spacing:.14em;text-transform:uppercase;padding:5px 11px;cursor:pointer}
 .helpbtn:hover{color:var(--text);border-color:#4a4e55}
 .brand b{font:800 10pt/1 var(--sans);letter-spacing:.14em;text-transform:uppercase;
@@ -245,6 +247,44 @@ dialog .btns .lbtn:first-child{margin-right:auto}
 .hint{font-size:11px;color:var(--faint);margin:5px 2px 0}
 .hint:empty{display:none}
 
+/* --- setup: an overlay with what's plugged in, then the settings, each saved as it changes */
+#setupdlg{width:min(680px,calc(100vw - 24px));max-height:calc(100vh - 32px);overflow-y:auto;padding:18px}
+#setupdlg h3{font-size:17px;margin:0 0 4px} #setupdlg h4{margin:18px 0 8px;font:700 10px var(--sans);letter-spacing:.16em;
+ text-transform:uppercase;color:var(--mut)}
+#setupdlg .x{position:sticky;top:0;float:right;margin:-6px -6px 0 8px}
+.checks{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.checks li{display:grid;grid-template-columns:22px 1fr;gap:8px;align-items:start;font-size:13px;line-height:1.4}
+.checks .mark{font:700 14px/1.3 var(--mono);text-align:center}
+.checks .ok .mark{color:var(--play)} .checks .no .mark{color:#ff6b5e} .checks .wait .mark{color:var(--amber)}
+.checks b{color:var(--text)} .checks span.why{color:var(--mut)}
+.sform{display:grid;gap:12px}
+.sfield{display:grid;gap:4px;min-width:0}
+.sfield>label,.sfield>.flabel{font:700 10px var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--faint)}
+.sfield input[type=text],.sfield select{width:100%;min-height:40px;border-radius:6px;border:1px solid #4a4e55;padding:8px 10px;background:#0b0d0d;
+ color:var(--text);font:14px var(--sans)}
+.sfield input[type=text]:focus-visible,.sfield select:focus-visible,.sbtn:focus-visible,.radios input:focus-visible{outline:2px solid var(--vfd);outline-offset:2px}
+.sfield .hint{margin:0;font-size:12px;color:var(--mut)}
+.sfield .err{margin:0;font-size:12.5px;color:#ff8a7f}
+.sfield .saved{margin:0;font-size:12px;color:var(--play)}
+.radios{display:flex;flex-wrap:wrap;gap:8px 16px;border:0;margin:0;padding:0}
+.radios label{display:flex;align-items:center;gap:8px;font-size:14px;min-height:32px;cursor:pointer}
+.radios input{width:18px;height:18px;accent-color:var(--vfd)}
+.sfield>label.check{display:flex;align-items:center;gap:10px;font:14px var(--sans);letter-spacing:0;text-transform:none;color:var(--text);min-height:40px;cursor:pointer}
+#adddest{justify-self:start}
+.check input{width:18px;height:18px;accent-color:var(--vfd)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:560px){.row2{grid-template-columns:1fr}}
+.sbtn{appearance:none;min-height:40px;min-width:80px;padding:0 16px;border-radius:6px;border:1px solid #4a4e55;background:#2a2d32;
+ color:var(--text);font:600 14px var(--sans);cursor:pointer;white-space:nowrap}
+.sbtn.primary{background:#1f8a5a;border-color:#145c3c;color:#fff}
+.sbtn.quiet{background:none}
+.dests{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.dests li{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;padding:8px 10px;border:1px solid var(--rule);border-radius:6px;font-size:13px}
+.dests li span{color:var(--mut);display:block;font-size:12px;overflow-wrap:anywhere}
+.destform{border:1px solid var(--rule);border-radius:8px;padding:12px;display:grid;gap:10px}
+.sfoot{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;align-items:center}
+.sfoot .where{margin-right:auto;font-size:11.5px;color:var(--faint);overflow-wrap:anywhere}
+.banner{padding:10px 12px;border:1px solid rgba(255,75,62,.5);border-radius:6px;color:#ffb0a8;font-size:13px;margin:10px 0}
 /* --- help: an overlay */
 #helpdlg{width:min(620px,calc(100vw - 32px));max-height:calc(100vh - 48px);overflow-y:auto}
 #helpdlg ul{margin:0;padding-left:18px;font-size:13px;line-height:1.5;color:var(--mut)} #helpdlg li{margin:9px 0}
@@ -268,7 +308,7 @@ dialog .btns .lbtn:first-child{margin-right:auto}
 
 <div class="brand"><div class="clock" id="clock" title="The station's clock: captures are named and dated by it" hidden>
  <span class="date"><span class="day" id="clk-day"></span> <span id="clk-date"></span><span class="year" id="clk-year"></span></span><span id="clk-time"></span>
- <span class="tz"><span class="tzname" id="clk-tzname"></span><span class="tzabbr" id="clk-tzabbr"></span></span></div><b>videocap</b><button class="helpbtn" id="helpbtn" aria-haspopup="dialog">? Help</button></div>
+ <span class="tz"><span class="tzname" id="clk-tzname"></span><span class="tzabbr" id="clk-tzabbr"></span></span></div><b>videocap</b><div class="brand-btns"><button class="helpbtn" id="setupbtn" aria-haspopup="dialog">Setup</button><button class="helpbtn" id="helpbtn" aria-haspopup="dialog">? Help</button></div></div>
 
 <section class="vfd" aria-label="Display">
  <div class="vrow">
@@ -381,6 +421,19 @@ mode) and the input setting, then turn it off and on.</li>
   <button class="lbtn keep" id="listsave">Use this list</button>
  </div>
 </dialog>
+<dialog id="setupdlg" aria-labelledby="setuptitle">
+ <button class="lbtn x" id="setupclose" aria-label="Close setup">&#10005;</button>
+ <h3 id="setuptitle">Setup</h3>
+ <p class="hint" id="setupintro" style="margin:0;color:var(--mut);font-size:13px"></p>
+ <div class="banner" id="setupbanner" hidden></div>
+ <h4>What's plugged in</h4>
+ <ul class="checks" id="checks"></ul>
+ <h4>This station</h4>
+ <div class="sform" id="sform"></div>
+ <h4>Where captures go</h4>
+ <div class="sform" id="dform"></div>
+ <div class="sfoot"><span class="where" id="setupwhere"></span><button class="sbtn primary" id="setupdone">Done</button></div>
+</dialog>
 <div class="lost" id="lost">Lost contact with the station</div>
 </main><script>
 const $=id=>document.getElementById(id);
@@ -425,6 +478,108 @@ function tickClock(){if(clockSkew==null)return;const t=new Date(Date.now()+clock
  $('clk-day').textContent=f({weekday:'short'});$('clk-date').textContent=f({month:'short',day:'numeric'});$('clk-year').textContent=', '+f({year:'numeric'});
  $('clk-time').textContent=f({hour:'numeric',minute:'2-digit'}).replace(/\s?([AP]M)/,' $1');$('clock').hidden=false}
 setInterval(tickClock,1000);
+// Setup: what's plugged in, then the settings; each one is saved the moment it changes, and an error stays under its
+// field until it's fixed. Opens by itself until the first setup is done.
+let S=null,setupAuto=false;
+const opt=(v,l,sel)=>'<option value="'+esc(v)+'"'+(sel?' selected':'')+'>'+esc(l)+'</option>';
+function field(key,label,inner,hint){return '<div class="sfield" data-key="'+key+'"><label for="s-'+key+'">'+label+'</label>'+inner+
+ (hint?'<p class="hint" id="h-'+key+'">'+hint+'</p>':'')+'<p class="err" id="e-'+key+'" role="alert" hidden></p><p class="saved" id="ok-'+key+'" hidden>Saved</p></div>'}
+async function openSetup(auto){setupAuto=!!auto;await loadSetup();$('setupdlg').showModal()}
+async function loadSetup(){S=await (await fetch('/settings.json',{cache:'no-store'})).json();renderSetup()}
+function renderSetup(){const v=S.values,first=!S.setup_done;
+ $('setuptitle').textContent=first?'Set up this station':'Setup';
+ $('setupintro').textContent=first?'Check what’s plugged in, pick the TV standard and capture stick, and you’re ready to record. Each choice is saved as you make it.':'Each change is saved as you make it, and applies from the next capture.';
+ $('setupbanner').hidden=S.writable;$('setupbanner').textContent='The page can’t save settings here: the station can’t write its settings file. Run it as root (the installer does), or edit the file by hand.';
+ $('setupdone').textContent=first?'Done: ready to record':'Close';
+ const prof=S.profiles.map(p=>opt(p.id,p.label,p.id==v.PROFILE)).join('');
+ const sug=S.suggested_profile&&S.suggested_profile!=v.PROFILE?S.profiles.find(p=>p.id==S.suggested_profile):null;
+ const disks='<option value=""'+(v.CARD_LABEL?'':' selected')+'>Any USB disk (the largest one plugged in)</option>'+S.disks.map(d=>{
+   const name=d.label||'(no name)',size=d.size_gb?d.size_gb+' GB':'',free=d.free_gb!=null?', '+d.free_gb+' GB free':'';
+   return '<option value="'+esc(d.label)+'"'+(d.label?'':' disabled')+(d.label&&d.label.toLowerCase()==(v.CARD_LABEL||'').toLowerCase()?' selected':'')+'>'+
+    esc(name+' · '+(d.fstype||'')+(size?' · '+size:'')+free+(d.label?'':' · give it a name to pick it'))+'</option>'}).join('')+
+   (v.CARD_LABEL&&!S.disks.some(d=>(d.label||'').toLowerCase()==v.CARD_LABEL.toLowerCase())?opt(v.CARD_LABEL,v.CARD_LABEL+' (not plugged in now)',true):'');
+ const tz=S.timezones.length?field('TZ','Time zone','<select id="s-TZ">'+S.timezones.map(z=>opt(z,z.replace(/_/g,' '),z==S.time_zone)).join('')+'</select>',
+   'Captures are named and dated by this clock.'):'';
+ $('sform').innerHTML=
+  '<div class="sfield" data-key="STANDARD"><span class="flabel" id="l-STANDARD">TV standard</span><fieldset class="radios" aria-labelledby="l-STANDARD">'+
+   ['NTSC','PAL'].map(x=>'<label><input type="radio" name="STANDARD" value="'+x+'"'+(v.STANDARD==x?' checked':'')+'>'+x+
+    (x=='NTSC'?' (the Americas, Japan)':' (most of Europe, Asia, Africa, Oceania)')+'</label>').join('')+
+   '</fieldset><p class="err" id="e-STANDARD" role="alert" hidden></p><p class="saved" id="ok-STANDARD" hidden>Saved</p></div>'+
+  field('PROFILE','Capture stick','<select id="s-PROFILE">'+prof+'</select>',
+   S.device?'Plugged in: '+esc(S.device)+(sug?'. <button class="sbtn quiet" type="button" id="usesug">Use '+esc(sug.label)+'</button>':S.suggested_profile==v.PROFILE?', and this profile fits it.':'.'):'No capture stick plugged in right now.')+
+  field('INPUT','Input','<select id="s-INPUT">'+opt('auto','Automatic (S-Video, then composite)',v.INPUT=='auto')+opt('svideo','S-Video',v.INPUT=='svideo')+
+   opt('composite','Composite (the yellow plug)',v.INPUT=='composite')+'</select>','Naming the plug you use is best: automatic keeps switching while it waits, and can miss the first seconds.')+
+  field('CARD_LABEL','Capture disk','<select id="s-CARD_LABEL">'+disks+'</select>','Each capture is recorded here first. exFAT works with any computer.')+
+  tz+
+  '<div class="row2">'+field('COLLECTION','Collection name','<input type="text" id="s-COLLECTION" value="'+esc(v.COLLECTION)+'" placeholder="The Smith family tapes" autocomplete="off">')+
+  field('DIGITIZED_BY','Digitized by','<input type="text" id="s-DIGITIZED_BY" value="'+esc(v.DIGITIZED_BY)+'" placeholder="Your name (optional)" autocomplete="off">')+'</div>'+
+  field('NETWORK_NAME','Network name','<input type="text" id="s-NETWORK_NAME" value="'+esc(v.NETWORK_NAME)+'" autocomplete="off" spellcheck="false">',
+   'The page’s address: http://'+esc(v.NETWORK_NAME||'videocap')+'.local/ (applies after a restart).')+
+  '<div class="sfield" data-key="MASTER_REVIEW"><label class="check"><input type="checkbox" id="s-MASTER_REVIEW"'+(v.MASTER_REVIEW=='1'?' checked':'')+
+   '>Hold each master until I’ve watched it and pressed Keep</label><p class="err" id="e-MASTER_REVIEW" role="alert" hidden></p><p class="saved" id="ok-MASTER_REVIEW" hidden>Saved</p></div>';
+ renderDests();renderChecks();
+ $('setupwhere').textContent=S.writable?'Saved in the station’s settings file.':'';
+ if($('usesug'))$('usesug').onclick=()=>{$('s-PROFILE').value=S.suggested_profile;saveField('PROFILE',S.suggested_profile)};
+}
+function renderDests(){const v=S.values,ds=S.destinations;
+ const where=d=>[d.MASTERS_DIR&&'masters disk '+d.MASTERS_DIR,d.MP4_REMOTE&&'MP4s to '+d.MP4_REMOTE,d.MASTER_REMOTE&&'masters to '+d.MASTER_REMOTE].filter(Boolean).join(' · ')||'nowhere yet';
+ $('dform').innerHTML=
+  field('DEFAULT_DESTINATION','Send captures to, unless the page picks another','<select id="s-DEFAULT_DESTINATION">'+S.all_destinations.map(d=>opt(d.id,d.label,d.id==(v.DEFAULT_DESTINATION||'disk'))).join('')+'</select>',
+   'This disk only keeps everything on the capture disk. Add a destination to copy captures on.')+
+  (ds.length?'<ul class="dests">'+ds.map(d=>'<li><div><b>'+esc(d.label)+'</b><span>'+esc(where(d))+'</span></div><button class="sbtn" type="button" data-edit="'+esc(d.id)+'">Edit<span class="visually-hidden"> '+esc(d.label)+'</span></button>'+
+   '<button class="sbtn quiet" type="button" data-del="'+esc(d.id)+'">Remove<span class="visually-hidden"> '+esc(d.label)+'</span></button></li>').join('')+'</ul>':'')+
+  '<button class="sbtn" type="button" id="adddest">Add a destination</button><div id="destedit"></div>';
+ $('adddest').onclick=()=>editDest(null);
+ $('dform').querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>editDest(ds.find(d=>d.id==b.dataset.edit)));
+ $('dform').querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{const d=ds.find(x=>x.id==b.dataset.del);
+  if(!confirm('Remove the destination “'+d.label+'”? Captures already sent there stay where they are.'))return;
+  const u={};['LABEL','MASTERS_DIR','MP4_REMOTE','MASTER_REMOTE'].forEach(k=>u['DEST.'+d.id+'.'+k]='');
+  if(v.DEFAULT_DESTINATION==d.id)u.DEFAULT_DESTINATION='';
+  await postSettings(u);await loadSetup()});
+}
+function editDest(d){const rem=S.remotes.length?'Remotes set up on this station: '+S.remotes.map(r=>r+':').join(', ')+'.':'No rclone remotes yet: set one up with rclone config on the station (or ask an AI agent, see AGENTS.md).';
+ $('destedit').innerHTML='<div class="destform" role="group" aria-label="'+(d?'Edit '+esc(d.label):'New destination')+'">'+
+  field('d-LABEL','Name','<input type="text" id="s-d-LABEL" value="'+esc(d?d.label:'')+'" placeholder="My NAS" autocomplete="off">')+
+  field('d-MP4_REMOTE','Send MP4s to','<input type="text" id="s-d-MP4_REMOTE" value="'+esc(d?d.MP4_REMOTE:'')+'" placeholder="/mnt/library or nas:Home Videos" autocomplete="off" spellcheck="false">','A folder on the station, or an rclone remote. '+rem)+
+  field('d-MASTER_REMOTE','Send masters to','<input type="text" id="s-d-MASTER_REMOTE" value="'+esc(d?d.MASTER_REMOTE:'')+'" placeholder="/mnt/archive or aws:my-bucket/masters" autocomplete="off" spellcheck="false">','Lossless masters are big: about 30 GB an hour.')+
+  field('d-MASTERS_DIR','Move masters to a bigger disk first (optional)','<input type="text" id="s-d-MASTERS_DIR" value="'+esc(d?d.MASTERS_DIR:'')+'" placeholder="/mnt/masters" autocomplete="off" spellcheck="false">','Frees the capture disk for the next tape. A folder on a disk that’s always plugged in.')+
+  '<div class="sfoot" style="margin-top:0"><button class="sbtn quiet" type="button" id="destcancel">Cancel</button><button class="sbtn primary" type="button" id="destsave">Save destination</button></div></div>';
+ $('s-d-LABEL').focus();
+ $('destcancel').onclick=()=>{$('destedit').innerHTML='';$('adddest').focus()};
+ $('destsave').onclick=async()=>{const label=$('s-d-LABEL').value.trim();
+  if(!label){showErr('d-LABEL','Give it a name, like My NAS.');$('s-d-LABEL').focus();return}
+  const id=d?d.id:label.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,30)||'dest';
+  const u={};u['DEST.'+id+'.LABEL']=label;['MP4_REMOTE','MASTER_REMOTE','MASTERS_DIR'].forEach(k=>u['DEST.'+id+'.'+k]=$('s-d-'+k).value.trim());
+  const errs=await postSettings(u);
+  if(errs){Object.entries(errs).forEach(([k,m])=>{const f=k.split('.').pop();showErr($('e-d-'+f)?'d-'+f:'d-LABEL',m)});return}
+  await loadSetup();$('s-DEFAULT_DESTINATION').focus()};
+}
+function showErr(key,msg){const e=$('e-'+key),i=$('s-'+key);if(!e)return;e.textContent=msg||'';e.hidden=!msg;
+ if(i){i.setAttribute('aria-invalid',msg?'true':'false');if(msg)i.setAttribute('aria-describedby','e-'+key)}if($('ok-'+key))$('ok-'+key).hidden=true}
+async function postSettings(u){const r=await fetch('/settings',{method:'POST',body:JSON.stringify(u)});const j=await r.json().catch(()=>({errors:{'':'No answer from the station.'}}));
+ return r.ok?null:j.errors}
+async function saveField(key,value){showErr(key,'');let errs=null;
+ if(key=='TZ'){const r=await fetch('/timezone',{method:'POST',body:value});const j=await r.json().catch(()=>({}));if(!r.ok)errs={TZ:j.error||'Couldn’t set the time zone.'};refresh()}
+ else errs=await postSettings({[key]:value});
+ if(errs){showErr(key,errs[key]||errs['']);return}
+ const ok=$('ok-'+key);if(ok){ok.hidden=false;setTimeout(()=>ok.hidden=true,2000)}
+ if(['PROFILE','CARD_LABEL','DEFAULT_DESTINATION','STANDARD'].includes(key)){const keep=document.activeElement&&document.activeElement.id;await loadSetup();if(keep&&$(keep))$(keep).focus()}}
+$('sform').addEventListener('change',e=>{const t=e.target,f=t.closest('.sfield');if(!f)return;const key=f.dataset.key;
+ saveField(key,t.type=='checkbox'?(t.checked?'1':'0'):t.value)});
+$('dform').addEventListener('change',e=>{if(e.target.id=='s-DEFAULT_DESTINATION')saveField('DEFAULT_DESTINATION',e.target.value)});
+function renderChecks(){if(!S||!$('setupdlg').open)return;const d=D||{},items=[];
+ const add=(state,what,why)=>items.push('<li class="'+state+'"><span class="mark" aria-hidden="true">'+(state=='ok'?'✓':state=='no'?'✕':'…')+'</span><span><span class="visually-hidden">'+(state=='ok'?'Good: ':state=='no'?'Missing: ':'Not yet: ')+'</span><b>'+what+'</b> <span class="why">'+why+'</span></span></li>');
+ const dev=d.device||S.device;
+ dev?add('ok','Capture stick:',esc(dev.replace(/\s*\(.*\)$/,''))):add('no','Capture stick:','not found. Plug it into a USB port on the station (a blue USB 3 port on a Pi).');
+ (d.audio||S.audio)?add('ok','Sound:','found'):add('no','Sound:','the capture stick’s sound isn’t showing up. Unplug the stick and plug it back in.');
+ d.card?add('ok','Capture disk:',esc(d.card)):add('no','Capture disk:','not found. Plug in a USB disk'+(S.values.CARD_LABEL?' named '+esc(S.values.CARD_LABEL):'')+'.');
+ d.signal===true||d.recording?add('ok','Picture:','coming in'+(d.input&&d.input!='test'?' on '+esc(d.input):'')):add('wait','Picture:','none yet. Play a tape (or turn the source on) to check the cables.');
+ d.address?add('ok','Address:',esc(d.address)):add('wait','Address:','this page works at the station’s own name or IP address; videocap.local needs avahi-utils.');
+ $('checks').innerHTML=items.join('')}
+$('setupbtn').onclick=()=>openSetup(false);
+$('setupclose').onclick=()=>$('setupdlg').close();
+$('setupdone').onclick=async()=>{if(!S.setup_done)await fetch('/setup-done',{method:'POST'});$('setupdlg').close()};
+$('setupdlg').addEventListener('close',()=>{$('setupbtn').focus();refresh()});
 // help, as an overlay; Esc or a click outside closes it
 $('helpbtn').onclick=()=>$('helpdlg').showModal();
 $('helpclose').onclick=()=>$('helpdlg').close();
@@ -628,5 +783,6 @@ async function refresh(){
   $('dest').disabled=d.destinations.length<2;
   $('desthint').textContent=d.destinations.length<2?'Add destinations (AWS, a VPS, Dropbox\u2026) in the settings file.':r?'A change applies from the next capture.':'';
  }catch(e){$('lost').style.display='block'}finally{fetching=false}}
-refresh();setInterval(refresh,2000);setInterval(standbyTick,100);
+refresh().then(async()=>{try{const j=await (await fetch('/settings.json',{cache:'no-store'})).json();
+ if(!j.setup_done)openSetup(true)}catch(e){}});setInterval(refresh,2000);setInterval(renderChecks,2000);setInterval(standbyTick,100);
 </script></body></html>

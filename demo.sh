@@ -19,6 +19,7 @@ for t in python3 ffmpeg ffprobe rclone; do
     command -v "$t" >/dev/null || { echo "needs $t" >&2; exit 1; }
 done
 mkdir -p "$dir/capture-disk" "$dir/masters" "$dir/library" "$dir/archive"
+touch "$dir/rclone.conf"   # its own, empty: the demo's destinations are folders, and your own remotes stay out of it
 
 [[ -e "$dir/items.csv" ]] || cat > "$dir/items.csv" <<'EOF'
 id,label,title,format,aspect
@@ -48,6 +49,7 @@ DEST.library.LABEL=Library only (MP4s)
 DEST.library.MP4_REMOTE=$dir/library
 STOP_AFTER_FROZEN_MIN=0.25
 MIN_TAKE_MINUTES=0.5
+RCLONE_CONFIG=$dir/rclone.conf
 MASTER_MIN_FREE_GB=3
 MASTERS_SPARE_GB=1
 MIN_FREE_GB=1

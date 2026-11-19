@@ -5,7 +5,7 @@ import tempfile
 import time
 import unittest
 
-from videocap import collection, config, mdns
+from videocap import collection, config, mdns, settings
 from videocap.queue import join
 from videocap.recording import Damage, build_command
 
@@ -231,6 +231,44 @@ class AnnounceTest(unittest.TestCase):
             finally:
                 os.environ["PATH"] = path
                 a.stop()
+
+
+class SettingsTest(unittest.TestCase):
+    def test_save_keeps_comments_and_order(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, "videocap.conf")
+            with open(p, "w") as f:
+                f.write("# my station\nSTANDARD=NTSC\n# where\nCARD_LABEL=OLD\nCARD_LABEL=OLDER\nDEST.nas.LABEL=NAS\n"
+                        "DEST.nas.MP4_REMOTE=/tmp\n")
+            settings.save(p, {"STANDARD": "PAL", "CARD_LABEL": "CAPTURES", "COLLECTION": "Family tapes",
+                              "DEST.nas.LABEL": "", "DEST.nas.MP4_REMOTE": ""})
+            with open(p) as f:
+                text = f.read()
+            with open(p + ".bak") as f:
+                self.assertIn("STANDARD=NTSC", f.read())  # the old file is kept
+        self.assertEqual(text, "# my station\nSTANDARD=PAL\n# where\nCARD_LABEL=CAPTURES\n\n"
+                               "# --- Set on the web page\nCOLLECTION=Family tapes\n")
+
+    def test_check_refuses_what_the_page_may_not_set(self):
+        c = conf()
+        with self.assertRaises(ValueError):
+            settings.check("HOOK", "/bin/sh -c 'rm -rf /'", c)  # runs a program: settings file only
+        with self.assertRaises(ValueError):
+            settings.check("RCLONE_CONFIG", "/tmp/x", c)
+        with self.assertRaises(ValueError):
+            settings.check("STANDARD", "SECAM", c)
+        with self.assertRaises(ValueError):
+            settings.check("COLLECTION", "two\nlines", c)
+        with self.assertRaises(ValueError):
+            settings.check("DEST.nas.MASTERS_DIR", "/etc", c)  # a system folder
+        with self.assertRaises(ValueError):
+            settings.check("DEST.nas.MASTERS_DIR", "/mnt/../etc", c)
+        with self.assertRaises(ValueError):
+            settings.check("DEST.disk.LABEL", "mine", c)  # built-in
+        self.assertEqual(settings.check("NETWORK_NAME", "Den-VCR.local", c), "den-vcr")
+        self.assertEqual(settings.check("MASTER_REVIEW", "on", c), "1")
+        with tempfile.TemporaryDirectory(dir=os.path.dirname(os.path.abspath(__file__))) as d:  # not under /var
+            self.assertEqual(settings.check("DEST.nas.MP4_REMOTE", d + "/", c), os.path.normpath(d))
 
 
 if __name__ == "__main__":
