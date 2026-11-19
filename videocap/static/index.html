@@ -175,17 +175,35 @@ button,select{font:inherit;color:inherit}
 #capname span{overflow:hidden;text-overflow:ellipsis}
 #capname b{flex:none;font:700 9px var(--sans);letter-spacing:.16em;color:var(--faint);text-shadow:none;margin-right:10px}
 #capbar{margin-top:10px}
+/* the panel beside the display: the video selector, and the picture shape under it */
+.panel{position:relative;display:grid;align-content:center;gap:6px;padding:4px 8px 8px;border-radius:8px;border:1px solid #0a0b0c;flex:none;
+ background:repeating-linear-gradient(90deg,rgba(255,255,255,.05) 0 1px,transparent 1px 3px),linear-gradient(180deg,#b9bdc3,#8e9399 55%,#7a7f86);
+ box-shadow:0 1px 0 rgba(255,255,255,.5) inset,0 -1px 0 rgba(0,0,0,.25) inset,0 3px 8px rgba(0,0,0,.45)}
+.panel::before{content:"";position:absolute;inset:4px;pointer-events:none;
+ background:radial-gradient(circle at 3px 3px,#5d6268 0 2px,transparent 2.5px),radial-gradient(circle at calc(100% - 3px) 3px,#5d6268 0 2px,transparent 2.5px),
+  radial-gradient(circle at 3px calc(100% - 3px),#5d6268 0 2px,transparent 2.5px),radial-gradient(circle at calc(100% - 3px) calc(100% - 3px),#5d6268 0 2px,transparent 2.5px)}
+.panel .selector{background:none;border:0;box-shadow:none;border-radius:6px}
+.panel .selector::before{display:none}
+.shape{display:flex;align-items:center;justify-content:center;gap:5px;border-top:1px solid rgba(0,0,0,.18);padding-top:6px;
+ box-shadow:0 -1px 0 rgba(255,255,255,.25) inset}
+.shape-l{font:800 7px var(--sans);letter-spacing:.24em;color:#3b3f45;margin-right:3px}
+.mini{appearance:none;min-width:40px;min-height:24px;padding:0 8px;border-radius:4px;border:1px solid #111;cursor:pointer;
+ background:linear-gradient(180deg,#3a3d43,#24262a);color:#9a978f;font:700 11px/1 var(--mono);box-shadow:0 1px 0 rgba(255,255,255,.12) inset,0 2px 0 #0a0b0c}
+.mini.on{color:var(--vfd);text-shadow:0 0 5px var(--vfd-glow);box-shadow:0 0 0 1px rgba(98,245,210,.5),0 2px 0 #0a0b0c}
+.mini:disabled{cursor:default;opacity:.55}
+.mini:focus-visible{outline:2px solid var(--vfd);outline-offset:2px}
+@media (pointer:coarse){.mini{min-height:36px;min-width:52px}}
 /* the display and the video selector side by side, the same height */
 .topdeck{display:flex;gap:10px;align-items:stretch}
 .topdeck .vfd{flex:1;min-width:0}
-.topdeck .selector{margin:0;flex:none;align-content:center;grid-template-columns:auto auto auto;gap:7px;padding:16px 10px 8px}
+.topdeck .selector{margin:0;flex:none;align-content:center;grid-template-columns:auto auto auto;gap:7px;padding:14px 4px 2px}
 .topdeck .sel-side{font-size:10px;letter-spacing:.08em;gap:5px}
 .topdeck .sel-side i{width:7px;height:7px}
 .topdeck .slot{width:50px;height:18px}
 .topdeck .lever{width:22px;height:14px}
 .topdeck .selector.on-b .lever{left:25px}
 .topdeck .sel-name{font-size:7px;letter-spacing:.24em}
-@media (max-width:640px){.topdeck{flex-direction:column}.topdeck .selector{grid-template-columns:1fr auto 1fr;padding:15px 12px 8px}}
+@media (max-width:640px){.topdeck{flex-direction:column}.topdeck .selector{grid-template-columns:1fr auto 1fr;padding:14px 8px 2px}}
 @media (max-width:480px){.selector{gap:8px;padding:17px 12px 11px}.sel-side{font-size:11px;letter-spacing:.05em}.slot{width:62px}.selector.on-b .lever{left:29px}}
 /* widescreen: a 16:9 screen, and the squeezed picture stretched back across it */
 .crt.wide{aspect-ratio:16/9;max-width:560px}
@@ -344,12 +362,17 @@ dialog .btns .lbtn:first-child{margin-right:auto}
   <span class="lamp on" id="l-wide" hidden>16:9</span>
  </div>
 </section>
+ <div class="panel">
  <div class="selector on-a no-b" id="sel" role="switch" aria-checked="false" tabindex="0"
   aria-label="Video selector: off is the live picture, on is your captures">
   <span class="sel-name">VIDEO SELECTOR</span>
   <span class="sel-side a" data-src="A">LIVE<i></i></span>
   <span class="slot"><span class="lever"></span></span>
   <span class="sel-side b" data-src="B"><i></i>CAPTURES</span>
+ </div>
+  <div class="shape" id="aspect" role="group" aria-label="Picture shape">
+   <span class="shape-l" aria-hidden="true">PICTURE</span><button class="mini" data-v="4:3" title="Standard (most tapes)">4:3</button><button class="mini" data-v="16:9" title="Widescreen (a camcorder's 16:9 mode)">16:9</button>
+  </div>
  </div>
 </div>
 <section class="now" id="now" aria-live="polite">
@@ -393,10 +416,6 @@ dialog .btns .lbtn:first-child{margin-right:auto}
   <datalist id="formats"><option>VHS</option><option>S-VHS</option><option>VHS-C</option><option>Video8</option><option>Hi8</option>
    <option>Digital8</option><option>MiniDV</option><option>Betamax</option><option>LaserDisc</option><option>Audio cassette</option></datalist>
   <div class="hint" id="dethint"></div>
- </div>
- <div class="lbl">Picture shape</div>
- <div class="seg" id="aspect" role="group" aria-label="Picture shape">
-  <button class="key small" data-v="4:3">4:3 standard</button><button class="key small" data-v="16:9">16:9 widescreen</button>
  </div>
  <div class="lbl">Send captures to</div>
  <div class="dest"><select id="dest" aria-label="Send captures to"></select></div>
