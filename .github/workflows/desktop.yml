@@ -42,7 +42,7 @@ jobs:
       - run: npx electron-builder --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
-      - name: Smoke test (Linux): the built app starts and keeps running, with no errors in its log
+      - name: "Smoke test (Linux): the built app starts and keeps running, with no errors in its log"
         if: runner.os == 'Linux'
         run: |
           sudo apt-get install -y -q xvfb >/dev/null
