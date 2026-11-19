@@ -25,13 +25,13 @@ main{max-width:720px;margin:0 auto;padding:14px 16px 40px;display:flex;flex-dire
 /* one column on a phone, in the order you need things: display, what to do, the deck, takes; two side by side when
    there's room: the deck on the left, what to do and the takes on the right */
 .col{display:contents}
-.brand{order:0} .vfd{order:1} .now{order:2} .deck{order:3} .last{order:4} .takes{order:5}
+.brand{order:0} .topdeck{order:1} .now{order:2} .deck{order:3} .last{order:4} .takes{order:5}
 @media (min-width:1000px){
  main{max-width:1280px;display:grid;grid-template-columns:minmax(0,1.15fr) minmax(340px,1fr);column-gap:18px;align-items:start;
-  grid-template-areas:"brand brand" "vfd now" "deck side"}
- .brand{grid-area:brand} .vfd{grid-area:vfd} .now{grid-area:now} .col-deck{grid-area:deck} .col-side{grid-area:side}
+  grid-template-areas:"brand brand" "top now" "deck side"}
+ .brand{grid-area:brand} .topdeck{grid-area:top} .now{grid-area:now} .col-deck{grid-area:deck} .col-side{grid-area:side}
  /* the display and the "do this now" panel share a row, at the same height */
- main>.vfd,main>.now{align-self:stretch;margin:0}
+ main>.topdeck,main>.now{align-self:stretch;margin:0}
  main>.now{align-content:center;grid-template-columns:auto minmax(0,1fr) auto;column-gap:16px}
  main>.now .icon{grid-row:1/span 3}
  main>.now h2,main>.now p{grid-column:2}
@@ -175,6 +175,17 @@ button,select{font:inherit;color:inherit}
 #capname span{overflow:hidden;text-overflow:ellipsis}
 #capname b{flex:none;font:700 9px var(--sans);letter-spacing:.16em;color:var(--faint);text-shadow:none;margin-right:10px}
 #capbar{margin-top:10px}
+/* the display and the video selector side by side, the same height */
+.topdeck{display:flex;gap:10px;align-items:stretch}
+.topdeck .vfd{flex:1;min-width:0}
+.topdeck .selector{margin:0;flex:none;align-content:center;grid-template-columns:auto auto auto;gap:7px;padding:16px 10px 8px}
+.topdeck .sel-side{font-size:10px;letter-spacing:.08em;gap:5px}
+.topdeck .sel-side i{width:7px;height:7px}
+.topdeck .slot{width:50px;height:18px}
+.topdeck .lever{width:22px;height:14px}
+.topdeck .selector.on-b .lever{left:25px}
+.topdeck .sel-name{font-size:7px;letter-spacing:.24em}
+@media (max-width:640px){.topdeck{flex-direction:column}.topdeck .selector{grid-template-columns:1fr auto 1fr;padding:15px 12px 8px}}
 @media (max-width:480px){.selector{gap:8px;padding:17px 12px 11px}.sel-side{font-size:11px;letter-spacing:.05em}.slot{width:62px}.selector.on-b .lever{left:29px}}
 /* widescreen: a 16:9 screen, and the squeezed picture stretched back across it */
 .crt.wide{aspect-ratio:16/9;max-width:560px}
@@ -319,6 +330,7 @@ dialog .btns .lbtn:first-child{margin-right:auto}
  <span class="date"><span class="day" id="clk-day"></span> <span id="clk-date"></span><span class="year" id="clk-year"></span></span><span id="clk-time"></span>
  <span class="tz"><span class="tzname" id="clk-tzname"></span><span class="tzabbr" id="clk-tzabbr"></span></span></div><b>videocap</b><div class="brand-btns"><button class="helpbtn" id="setupbtn" aria-haspopup="dialog">Setup</button><button class="helpbtn" id="helpbtn" aria-haspopup="dialog">Help</button></div></div>
 
+<div class="topdeck">
 <section class="vfd" aria-label="Display">
  <div class="vrow">
   <div class="mode" id="mode"><span class="dot" id="dot" hidden></span><span id="modetxt">----</span></div>
@@ -332,6 +344,14 @@ dialog .btns .lbtn:first-child{margin-right:auto}
   <span class="lamp on" id="l-wide" hidden>16:9</span>
  </div>
 </section>
+ <div class="selector on-a no-b" id="sel" role="switch" aria-checked="false" tabindex="0"
+  aria-label="Video selector: off is the live picture, on is your captures">
+  <span class="sel-name">VIDEO SELECTOR</span>
+  <span class="sel-side a" data-src="A">LIVE<i></i></span>
+  <span class="slot"><span class="lever"></span></span>
+  <span class="sel-side b" data-src="B"><i></i>CAPTURES</span>
+ </div>
+</div>
 <section class="now" id="now" aria-live="polite">
  <div class="icon"><svg class="ring" id="ring" viewBox="0 0 64 64" hidden><circle class="bg" cx="32" cy="32" r="27"/><circle class="fg" id="ringfg" cx="32" cy="32" r="27"/></svg><span class="glyph" id="glyph"></span></div>
  <h2 id="head">Connecting&hellip;</h2>
@@ -342,13 +362,6 @@ dialog .btns .lbtn:first-child{margin-right:auto}
 <div class="col col-deck">
 
 <section class="deck">
- <div class="selector on-a no-b" id="sel" role="switch" aria-checked="false" tabindex="0"
-  aria-label="Video selector: off is the live picture, on is your captures">
-  <span class="sel-name">VIDEO SELECTOR</span>
-  <span class="sel-side a" data-src="A">LIVE<i></i></span>
-  <span class="slot"><span class="lever"></span></span>
-  <span class="sel-side b" data-src="B"><i></i>CAPTURES</span>
- </div>
  <div class="crt" id="crt"><img id="snap" alt="Live picture while recording" hidden><video id="vid" controls playsinline preload="metadata" hidden></video><div class="blank" id="blank">NO PICTURE</div></div>
  <div class="transport">
   <button class="key wide rec" id="start"><span class="sym">&#9679;</span>REC</button>
