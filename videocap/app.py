@@ -18,7 +18,7 @@ import threading
 import time
 from datetime import datetime
 
-from . import collection, config, hardware, mdns, settings
+from . import collection, config, hardware, live, mdns, settings
 from .hardware import log
 from .queue import Queue
 from .recording import Recording
@@ -62,6 +62,7 @@ class App:
         self.standby_until = time.time() + self.f("STANDBY_HOURS") * 3600
         self.standby_retry = 0       # after a standby recording failed to start, try again from this time
         self.restart_standby = False # the next item changed: start the standby recording over under its name
+        self.live = live.LiveFeed()  # the page's live picture, fed by each recording's ffmpeg
         self.view_until = 0          # a capture is being watched on the page: keep its disk mounted until then
         self.viewed = False          # the disk was kept mounted for watching
         self.others_frozen = True    # so the first pause_others(False) thaws them, in case a crash left them frozen
@@ -364,7 +365,7 @@ class App:
         hardware.set_gain(self.conf, audio)
         hardware.compact_memory()
         try:
-            rconf = dict(self.conf, ASPECT=self.next_aspect)
+            rconf = dict(self.conf, ASPECT=self.next_aspect, LIVE_PORT=str(self.live.port))
             self.rec = Recording(rconf, dev, audio, base, mode, card.get("fstype") == "vfat", SNAP)
             self.rec.aspect = self.next_aspect
         except OSError as e:
@@ -865,7 +866,7 @@ class App:
         rec = self.rec
         mfree = self.masters_free()
         tz, tz_abbr = self.time_zone()
-        d = {"station": self.station(), "address": self.address(), "now": time.time(), "tz": tz, "tz_abbr": tz_abbr, "step": self.step(), "held": self.queue.held(), "warnings": self.warnings(mfree),
+        d = {"station": self.station(), "address": self.address(), "live": self.live.fresh(), "now": time.time(), "tz": tz, "tz_abbr": tz_abbr, "step": self.step(), "held": self.queue.held(), "warnings": self.warnings(mfree),
              "state": self.state, "message": self.message, "last": self.last_result,
              "advice": self.advice(mfree), "masters_free_gb": mfree and round(mfree),
              "master_gb": self.f("MASTER_MIN_FREE_GB"), "profile": self.conf["PROFILE"],

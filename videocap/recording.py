@@ -58,9 +58,10 @@ def build_command(conf, dev, audio, base, mode, vfat, snap):
     # in ffmpeg 7.1 at shutdown). Every output must keep up within a fraction of a second: ffmpeg stops reading an
     # input whose outputs run ahead of the slowest one, and a USB sound card overruns after ~0.7 s unread. A
     # snapshot every 2 s silenced most of a tape's sound once it was in sync.
-    graph.append("[d]scale=320:240,split[d1][d2];"
+    live = conf.get("LIVE_PORT")
+    graph.append("[d]scale=480:360,split[d1][d2];"
                  "[d1]scale=160:120,showinfo=checksum=0,fps=10,freezedetect=n=0.003:d=2[frz];"
-                 "[d2]fps=5[snap]")
+                 + ("[d2]split[d3][live];[d3]fps=5[snap]" if live else "[d2]fps=5[snap]"))
     if audio:
         aouts = (["[am]"] if master else []) + (["[aa]"] if access else []) + ["[ax]"] + (["[ap]"] if preview else [])
         # first_pts=0 fills the gap before the sound opened with silence: the live MP4 has no edit list, so a late
@@ -93,6 +94,9 @@ def build_command(conf, dev, audio, base, mode, vfat, snap):
         cmd += ["-movflags", "+frag_keyframe+empty_moov+default_base_moof", path]
         files.append(path)
     cmd += ["-map", "[snap]", "-f", "image2", "-update", "1", "-q:v", "5", snap]
+    if live:  # the page's live picture: motion JPEG to this machine's web server, over UDP (never blocks)
+        cmd += ["-map", "[live]", "-c:v", "mjpeg", "-q:v", "6", "-pix_fmt", "yuvj420p", "-f", "mjpeg",
+                "udp://127.0.0.1:%s?pkt_size=65000" % live]
     if preview:  # UDP never blocks; nobody listening is fine
         cmd += ["-map", "[pv]"] + (["-map", "[ap]", "-c:a", "mp2", "-b:a", "192k"] if audio else [])
         cmd += ["-c:v", "mpeg2video", "-q:v", "4", "-g", "15", "-f", "mpegts", "udp://%s?pkt_size=1316" % preview]

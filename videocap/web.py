@@ -7,6 +7,7 @@
     POST /settings      body: JSON {KEY: value}: written to the settings file, all or none; answers {"errors": {}}
     POST /setup-done    the first-run setup is finished (the page stops opening it by itself)
     POST /timezone      body: a time zone name (America/New_York): set this machine's time zone
+    GET  /live.mjpg     the live picture while recording, ~30 frames a second (multipart JPEG); ends when it stops
     GET  /watch/NAME    a listed capture's MP4 (with byte ranges, for seeking); 404 if its disk isn't here
     POST /start         record now (Start, then press play)
     POST /stop          stop recording (a take stopped by hand is held for review)
@@ -65,10 +66,31 @@ def handler(app):
                     self.send(404, "text/plain", b"no picture yet")
             elif path == "/settings.json":
                 self.send(200, "application/json", json.dumps(app.settings_view()).encode())
+            elif path == "/live.mjpg":
+                self.live()
             elif path.startswith("/watch/"):
                 self.watch(urllib.parse.unquote(path[len("/watch/"):]))
             else:
                 self.send(404, "text/plain", b"not found")
+
+        def live(self):
+            """The live picture as multipart JPEG (an <img> plays it), until the recording stops sending frames."""
+            first = app.live.next(-1 if app.live.fresh() else app.live.seq, timeout=3)
+            if not first:
+                return self.send(404, "text/plain", b"no live picture right now")
+            self.send_response(200)
+            self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=frame")
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            got = first
+            try:
+                while got:
+                    seq, jpeg = got
+                    self.wfile.write(b"--frame\r\nContent-Type: image/jpeg\r\nContent-Length: %d\r\n\r\n" % len(jpeg)
+                                     + jpeg + b"\r\n")
+                    got = app.live.next(seq)
+            except (BrokenPipeError, ConnectionResetError):
+                pass  # the page went away
 
         def watch(self, name):
             """Play a capture's MP4: whole, or the byte range the browser asks for (seeking)."""
