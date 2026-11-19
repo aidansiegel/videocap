@@ -476,6 +476,10 @@ const HAND='<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="
  '<path d="M17 12V8a1.5 1.5 0 0 1 3 0v6a7 7 0 0 1-7 7h-1.5a6 6 0 0 1-4.6-2.2L4.3 15.2a1.6 1.6 0 0 1 2.4-2.1L8 14.5"/></svg>';
 let D=null,sb=null,itemsKey='',destKey='',fetching=false,lastFetch=0;
 
+// the live picture: the next frame as soon as the last one has arrived (the station saves 5 a second)
+let snapOn=false;
+function nextSnap(){if(source=='A'&&D&&D.recording&&!document.hidden)$('snap').src='/snap.jpg?'+Date.now();else snapOn=false}
+$('snap').onload=$('snap').onerror=()=>setTimeout(nextSnap,150);
 // level meter segments
 $('segs').innerHTML=Array.from({length:24},(_,i)=>'<i class="'+(i>=21?'r':i>=17?'y':'')+'"></i>').join('');
 
@@ -794,7 +798,7 @@ async function refresh(){
   if(d.standby)sb={at:Date.now()-d.standby.age*1000,cycle:d.standby.cycle*1000};
   panel(d); standbyTick();
   // monitor and meter
-  if(source=='A'){$('snap').hidden=!r; $('blank').hidden=!!r; if(r)$('snap').src='/snap.jpg?'+Date.now();
+  if(source=='A'){$('snap').hidden=!r; $('blank').hidden=!!r; if(r&&!snapOn){snapOn=true;nextSnap()}
    $('blank').textContent=d.step=='standby'?'STANDBY':d.signal?'PICTURE OK':'NO PICTURE';}
   const p=r&&r.peak_db!=null?r.peak_db:null, lit=p==null?0:Math.round(Math.max(0,Math.min(1,(p+48)/48))*24);
   [...$('segs').children].forEach((s,i)=>s.classList.toggle('on',i<lit));
