@@ -25,19 +25,20 @@ main{max-width:720px;margin:0 auto;padding:14px 16px 40px;display:flex;flex-dire
 /* one column on a phone, in the order you need things: display, what to do, the deck, takes; two side by side when
    there's room: the deck on the left, what to do and the takes on the right */
 .col{display:contents}
-.brand{order:0} .topdeck{order:1} .now{order:2} .deck{order:3} .last{order:4} .takes{order:5}
+.brand{order:0} .topdeck{order:1} .deck{order:3} .last{order:4} .takes{order:5}
 @media (min-width:1000px){
  main{max-width:1280px;display:grid;grid-template-columns:minmax(0,1.15fr) minmax(340px,1fr);column-gap:18px;align-items:start;
-  grid-template-areas:"brand brand" "top now" "deck side"}
- .brand{grid-area:brand} .topdeck{grid-area:top} .now{grid-area:now} .col-deck{grid-area:deck} .col-side{grid-area:side}
- /* the display and the "do this now" panel share a row, at the same height */
- main>.topdeck,main>.now{align-self:stretch;margin:0}
- main>.now{align-content:center;grid-template-columns:auto minmax(0,1fr) auto;column-gap:16px}
- main>.now .icon{grid-row:1/span 3}
- main>.now h2,main>.now p{grid-column:2}
- main>.now .acts{grid-column:3;grid-row:1/span 3;flex-direction:column;align-items:stretch;margin-top:0;align-self:center}
- main>.now .acts .key{justify-content:center;white-space:nowrap}
- main>.now .advice{grid-column:2;margin-top:6px;padding-top:6px}
+  grid-template-areas:"brand brand" "top top" "deck side"}
+ .brand{grid-area:brand} .topdeck{grid-area:top} .col-deck{grid-area:deck} .col-side{grid-area:side}
+ /* the display, the switches (centered) and the "do this now" panel share a row, at the same height */
+ main>.topdeck{align-self:stretch;margin:0}
+ .topdeck .now{flex:1;min-width:0;margin:0}
+ .topdeck .now{align-content:center;grid-template-columns:auto minmax(0,1fr) auto;column-gap:16px}
+ .topdeck .now .icon{grid-row:1/span 3}
+ .topdeck .now h2,.topdeck .now p{grid-column:2}
+ .topdeck .now .acts{grid-column:3;grid-row:1/span 3;flex-direction:column;align-items:stretch;margin-top:0;align-self:center}
+ .topdeck .now .acts .key{justify-content:center;white-space:nowrap}
+ .topdeck .now .advice{grid-column:2;margin-top:6px;padding-top:6px}
  .col-side .takes{margin-top:14px}
  .col{display:flex;flex-direction:column;min-width:0}
  .col-deck .crt,.col-deck .crt.wide{max-width:none}
@@ -58,7 +59,7 @@ button,select{font:inherit;color:inherit}
 .brand .clock span{font:inherit;letter-spacing:inherit;text-transform:none;color:inherit;text-align:left}
 .brand .clock .tz{color:var(--faint);font-size:10px;letter-spacing:.06em}
 .clock .tzname{display:inline} .clock .tzabbr{display:none}
-@media (max-width:640px){.brand .clock .tzname,.brand .clock .day,.brand .clock .year{display:none}.brand .clock .tzabbr{display:inline}}
+@media (max-width:999px){.brand .clock .tzname,.brand .clock .day,.brand .clock .year{display:none}.brand .clock .tzabbr{display:inline}}
 @media (max-width:400px){.clock{font-size:10px;gap:6px}.brand .clock .tz{font-size:9px}}
 @media (max-width:340px){.brand .clock .date{display:none}}
 .brand-btns{position:absolute;right:0;top:50%;transform:translateY(-50%);display:flex;gap:8px}
@@ -187,7 +188,9 @@ button,select{font:inherit;color:inherit}
 .topdeck .slot{width:50px;height:18px}
 .topdeck .lever{width:22px;height:14px}
 .topdeck .sw.on-b .lever{left:25px}
-@media (max-width:640px){.topdeck{flex-direction:column}}
+.topdeck{min-width:0}
+@media (max-width:999px){.topdeck{flex-wrap:wrap;margin-bottom:14px}.topdeck .now{flex:0 0 100%;margin:0}}
+@media (max-width:640px){.topdeck{flex-direction:column;flex-wrap:nowrap}.topdeck .now{flex:none}}
 /* widescreen: a 16:9 screen, and the squeezed picture stretched back across it */
 .crt.wide{aspect-ratio:16/9;max-width:560px}
 .crt{transition:aspect-ratio .25s}
@@ -361,7 +364,6 @@ dialog .btns .lbtn:first-child{margin-right:auto}
    <span class="sel-side b" data-v="16:9"><i></i>16:9</span>
   </div>
  </div>
-</div>
 <section class="now" id="now" aria-live="polite">
  <div class="icon"><svg class="ring" id="ring" viewBox="0 0 64 64" hidden><circle class="bg" cx="32" cy="32" r="27"/><circle class="fg" id="ringfg" cx="32" cy="32" r="27"/></svg><span class="glyph" id="glyph"></span></div>
  <h2 id="head">Connecting&hellip;</h2>
@@ -369,6 +371,7 @@ dialog .btns .lbtn:first-child{margin-right:auto}
  <div class="acts" id="acts"></div>
  <div class="advice" id="advice"></div>
 </section>
+</div>
 <div class="col col-deck">
 
 <section class="deck">
