@@ -29,11 +29,33 @@ About $225 before the disk: a Pi 5 4 GB ($110), its 27 W power supply ($12), a c
 
 ## Install
 
-**Easiest, on a Raspberry Pi:** download `videocap-…img.xz` from the
-[latest release](https://github.com/aidansiegel/videocap/releases), write it to a microSD card with Raspberry Pi
-Imager (*Choose OS → Use custom*; in its settings, add your Wi-Fi), boot the Pi, and open **http://videocap.local/**.
+### The easy way: a ready-made Raspberry Pi card
 
-**Or on Raspberry Pi OS, Debian or Ubuntu you already have:**
+No terminal, no settings file. You need a Raspberry Pi 5, its power supply, a microSD card (16 GB or more), a USB
+capture stick and a USB disk.
+
+1. **Download** the `videocap-…img.xz` file from the
+   [latest release](https://github.com/aidansiegel/videocap/releases) (about 800 MB). Don't unzip it.
+2. **Install [Raspberry Pi Imager](https://www.raspberrypi.com/software/)** on your computer and open it.
+3. **Choose device:** Raspberry Pi 5. **Choose OS:** scroll to the bottom, *Use custom*, and pick the file you
+   downloaded. **Choose storage:** your microSD card.
+4. **Next → Edit settings** (when Imager asks whether to apply OS customization). Set these, or the Pi can't get
+   online by itself:
+   - **Hostname:** `videocap` (this becomes the address, `videocap.local`)
+   - **Username and password:** anything you'll remember (only needed if you ever log in to fix something)
+   - **Wireless LAN:** your Wi-Fi name and password, and your country (skip this if you'll plug in a network cable)
+   - **Locale:** your time zone
+5. **Save → Yes**, and wait for Imager to write and check the card.
+6. **Put the card in the Pi**, plug in the capture stick and the USB disk, then the power. Give it about 3 minutes
+   the first time.
+7. **Open http://videocap.local/** on a phone or computer on the same Wi-Fi. The setup screen opens by itself:
+   it shows what's plugged in, and you pick the TV standard, the capture stick, and where captures go.
+
+If `videocap.local` doesn't open: wait a minute and try again, try `http://videocap/`, or find the Pi's address in
+your router's list of devices. A Hauppauge USB-Live2 **Rev E1** needs an extra driver; see
+[docs/profiles.md](https://github.com/aidansiegel/videocap/blob/main/docs/profiles.md).
+
+### On a Raspberry Pi OS, Debian or Ubuntu machine you already have
 
 ```bash
 git clone https://github.com/aidansiegel/videocap.git && cd videocap

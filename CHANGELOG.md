@@ -1,16 +1,24 @@
 # Changelog
 
-## Unreleased
+## 0.0.1 alpha 3 (2026-11-18)
 
-- **Setup on the page:** what's plugged in, then the settings (TV standard, capture stick suggested from what it
-  calls itself, input, disk, time zone, destinations...), each saved as it changes. Opens by itself the first time.
+- **A ready-made Raspberry Pi card:** download the image, write it with Raspberry Pi Imager, boot, open
+  http://videocap.local/. Built on GitHub with pi-gen and attached to each release. (Built and checked in the build
+  log; not yet booted on a real Pi.)
+- **Setup on the page:** what's plugged in and the page's own address, then the settings (TV standard, capture stick
+  suggested from what it calls itself, input, disk, time zone, destinations...), each saved as it changes. Opens by
+  itself the first time; no settings file to edit.
 - **AGENTS.md:** how an AI agent (Codex, Claude Code) installs, sets up, runs and fixes a station for someone, and
   what it must never touch.
-- **A ready-made Raspberry Pi image**, built on GitHub with pi-gen.
-- **Tested on real hardware:** a Raspberry Pi 5 with a Hauppauge USB-Live2 Rev E1, recapturing Hi8 tapes.
+- **A live 30 fps picture** on the page while recording (motion JPEG, never able to hold up the recording).
+- **The panel beside the display:** two matching slide switches, VIDEO SELECTOR (live picture or your captures) and
+  PICTURE SHAPE (4:3 or 16:9), centered between the display and the instructions.
+- **On real hardware:** a Raspberry Pi 5 with a Hauppauge USB-Live2 Rev E1 (Debian 13). Device and disk detection,
+  setup and recording checked; the first full tape, a Hi8 recapture, was still recording at release time.
 - **Hardening** from a failure-case review: no way to add settings-file lines from the page (a hidden line break could
   have added a HOOK= run as root), no POSTs from other sites' pages, moves checked against the disk before the
-  original is deleted, crash-safe state files, unmounted masters disks caught, and more.
+  original is deleted, crash-safe state files, unmounted masters disks caught, odd titles and lists handled, and more.
+- Setup and Help as full-size buttons, the clock with AM/PM, REC and STOP under the picture.
 
 ## 0.0.1 alpha 2 (2026-11-18)
 
