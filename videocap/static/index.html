@@ -149,62 +149,45 @@ button,select{font:inherit;color:inherit}
 .crt img{width:100%;height:100%;object-fit:fill;display:block}
 .crt video{width:100%;height:100%;object-fit:contain;display:block;background:#000}
 .crt.watching::after{display:none}
-/* the video selector: a little metal A/B switch box, LIVE on A, CAPTURES on B */
-.selector{position:relative;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px;margin:0 0 10px;padding:17px 18px 11px;
- border-radius:8px;border:1px solid #0a0b0c;cursor:pointer;user-select:none;-webkit-user-select:none;
- background:repeating-linear-gradient(90deg,rgba(255,255,255,.05) 0 1px,transparent 1px 3px),linear-gradient(180deg,#b9bdc3,#8e9399 55%,#7a7f86);
- box-shadow:0 1px 0 rgba(255,255,255,.5) inset,0 -1px 0 rgba(0,0,0,.25) inset,0 3px 8px rgba(0,0,0,.45)}
-.selector:focus-visible{outline:2px solid var(--vfd);outline-offset:2px}
-.selector::before{content:"";position:absolute;inset:4px;pointer-events:none;
- background:radial-gradient(circle at 3px 3px,#5d6268 0 2px,transparent 2.5px),radial-gradient(circle at calc(100% - 3px) 3px,#5d6268 0 2px,transparent 2.5px),
-  radial-gradient(circle at 3px calc(100% - 3px),#5d6268 0 2px,transparent 2.5px),radial-gradient(circle at calc(100% - 3px) calc(100% - 3px),#5d6268 0 2px,transparent 2.5px)}
-.sel-name{position:absolute;top:4px;left:0;right:0;text-align:center;font:800 8px var(--sans);letter-spacing:.3em;color:#3b3f45;pointer-events:none}
+/* the switches in the panel beside the display: a lever between two lamps; the lit lamp is the side that's on */
+.sw{cursor:pointer;user-select:none;-webkit-user-select:none}
+.sw:focus-visible{outline:2px solid var(--vfd);outline-offset:2px}
 .sel-side{display:flex;align-items:center;gap:7px;font:800 12px var(--sans);letter-spacing:.12em;color:#43474d}
 .sel-side.a{justify-content:flex-end}
 .sel-side i{width:8px;height:8px;border-radius:50%;background:#4a1d1a;box-shadow:inset 0 1px 1px rgba(0,0,0,.5);flex:none}
-.selector.on-a .sel-side.a i,.selector.on-b .sel-side.b i{background:#ff4b3e;box-shadow:0 0 6px #ff4b3e,0 0 2px #fff inset}
-.selector.on-a .sel-side.a,.selector.on-b .sel-side.b{color:#0d0f11}
+.sw.on-a .sel-side.a i,.sw.on-b .sel-side.b i{background:#ff4b3e;box-shadow:0 0 6px #ff4b3e,0 0 2px #fff inset}
+.sw.on-a .sel-side.a,.sw.on-b .sel-side.b{color:#0d0f11}
 .selector.no-b .sel-side.b{opacity:.4}
 .slot{position:relative;width:74px;height:22px;border-radius:4px;background:#1a1c1f;box-shadow:inset 0 2px 4px rgba(0,0,0,.8),0 1px 0 rgba(255,255,255,.45)}
 .lever{position:absolute;top:2px;left:3px;width:30px;height:18px;border-radius:3px;transition:left .18s ease;
  background:repeating-linear-gradient(90deg,rgba(0,0,0,.22) 0 2px,transparent 2px 5px),linear-gradient(180deg,#eceef0,#a9adb3);
  box-shadow:0 1px 2px rgba(0,0,0,.6),0 1px 0 #fff inset}
-.selector.on-b .lever{left:41px}
+.sw.on-b .lever{left:41px}
 #capname{flex:1;min-width:0;display:flex;align-items:center;padding:0 12px;min-height:34px;border-radius:7px;border:1px solid #000;background:#0b0d0d;
  color:var(--vfd);font:13px var(--mono);text-shadow:0 0 5px var(--vfd-glow);overflow:hidden;white-space:nowrap}
 #capname span{overflow:hidden;text-overflow:ellipsis}
 #capname b{flex:none;font:700 9px var(--sans);letter-spacing:.16em;color:var(--faint);text-shadow:none;margin-right:10px}
 #capbar{margin-top:10px}
 /* the panel beside the display: the video selector, and the picture shape under it */
-.panel{position:relative;display:grid;align-content:center;gap:6px;padding:4px 8px 8px;border-radius:8px;border:1px solid #0a0b0c;flex:none;
+.panel{position:relative;display:grid;grid-template-columns:1fr auto 1fr;align-content:center;column-gap:7px;row-gap:3px;padding:6px 12px 9px;border-radius:8px;border:1px solid #0a0b0c;flex:none;
  background:repeating-linear-gradient(90deg,rgba(255,255,255,.05) 0 1px,transparent 1px 3px),linear-gradient(180deg,#b9bdc3,#8e9399 55%,#7a7f86);
  box-shadow:0 1px 0 rgba(255,255,255,.5) inset,0 -1px 0 rgba(0,0,0,.25) inset,0 3px 8px rgba(0,0,0,.45)}
 .panel::before{content:"";position:absolute;inset:4px;pointer-events:none;
  background:radial-gradient(circle at 3px 3px,#5d6268 0 2px,transparent 2.5px),radial-gradient(circle at calc(100% - 3px) 3px,#5d6268 0 2px,transparent 2.5px),
   radial-gradient(circle at 3px calc(100% - 3px),#5d6268 0 2px,transparent 2.5px),radial-gradient(circle at calc(100% - 3px) calc(100% - 3px),#5d6268 0 2px,transparent 2.5px)}
-.panel .selector{background:none;border:0;box-shadow:none;border-radius:6px}
-.panel .selector::before{display:none}
-.shape{display:flex;align-items:center;justify-content:center;gap:5px;border-top:1px solid rgba(0,0,0,.18);padding-top:6px;
- box-shadow:0 -1px 0 rgba(255,255,255,.25) inset}
-.shape-l{font:800 7px var(--sans);letter-spacing:.24em;color:#3b3f45;margin-right:3px}
-.mini{appearance:none;min-width:40px;min-height:24px;padding:0 8px;border-radius:4px;border:1px solid #111;cursor:pointer;
- background:linear-gradient(180deg,#3a3d43,#24262a);color:#9a978f;font:700 11px/1 var(--mono);box-shadow:0 1px 0 rgba(255,255,255,.12) inset,0 2px 0 #0a0b0c}
-.mini.on{color:var(--vfd);text-shadow:0 0 5px var(--vfd-glow);box-shadow:0 0 0 1px rgba(98,245,210,.5),0 2px 0 #0a0b0c}
-.mini:disabled{cursor:default;opacity:.55}
-.mini:focus-visible{outline:2px solid var(--vfd);outline-offset:2px}
-@media (pointer:coarse){.mini{min-height:36px;min-width:52px}}
+.panel .sw{grid-column:1/-1;display:grid;grid-template-columns:subgrid;align-items:center;padding:2px 0;border-radius:5px;margin:0}
+.panel .pcap{grid-column:1/-1;text-align:center;font:800 7px var(--sans);letter-spacing:.24em;color:#3b3f45;margin-top:3px}
+.panel .pcap+.sw+.pcap{border-top:1px solid rgba(0,0,0,.16);box-shadow:0 1px 0 rgba(255,255,255,.22) inset;padding-top:6px;margin-top:4px}
+.sw.locked{cursor:default;opacity:.55}
 /* the display and the video selector side by side, the same height */
 .topdeck{display:flex;gap:10px;align-items:stretch}
 .topdeck .vfd{flex:1;min-width:0}
-.topdeck .selector{margin:0;flex:none;align-content:center;grid-template-columns:auto auto auto;gap:7px;padding:14px 4px 2px}
 .topdeck .sel-side{font-size:10px;letter-spacing:.08em;gap:5px}
 .topdeck .sel-side i{width:7px;height:7px}
 .topdeck .slot{width:50px;height:18px}
 .topdeck .lever{width:22px;height:14px}
-.topdeck .selector.on-b .lever{left:25px}
-.topdeck .sel-name{font-size:7px;letter-spacing:.24em}
-@media (max-width:640px){.topdeck{flex-direction:column}.topdeck .selector{grid-template-columns:1fr auto 1fr;padding:14px 8px 2px}}
-@media (max-width:480px){.selector{gap:8px;padding:17px 12px 11px}.sel-side{font-size:11px;letter-spacing:.05em}.slot{width:62px}.selector.on-b .lever{left:29px}}
+.topdeck .sw.on-b .lever{left:25px}
+@media (max-width:640px){.topdeck{flex-direction:column}}
 /* widescreen: a 16:9 screen, and the squeezed picture stretched back across it */
 .crt.wide{aspect-ratio:16/9;max-width:560px}
 .crt{transition:aspect-ratio .25s}
@@ -363,15 +346,19 @@ dialog .btns .lbtn:first-child{margin-right:auto}
  </div>
 </section>
  <div class="panel">
- <div class="selector on-a no-b" id="sel" role="switch" aria-checked="false" tabindex="0"
-  aria-label="Video selector: off is the live picture, on is your captures">
-  <span class="sel-name">VIDEO SELECTOR</span>
-  <span class="sel-side a" data-src="A">LIVE<i></i></span>
-  <span class="slot"><span class="lever"></span></span>
-  <span class="sel-side b" data-src="B"><i></i>CAPTURES</span>
- </div>
-  <div class="shape" id="aspect" role="group" aria-label="Picture shape">
-   <span class="shape-l" aria-hidden="true">PICTURE</span><button class="mini" data-v="4:3" title="Standard (most tapes)">4:3</button><button class="mini" data-v="16:9" title="Widescreen (a camcorder's 16:9 mode)">16:9</button>
+  <span class="pcap" aria-hidden="true">VIDEO SELECTOR</span>
+  <div class="sw selector on-a no-b" id="sel" role="switch" aria-checked="false" tabindex="0"
+   aria-label="Video selector: off is the live picture, on is your captures">
+   <span class="sel-side a" data-src="A">LIVE<i></i></span>
+   <span class="slot"><span class="lever"></span></span>
+   <span class="sel-side b" data-src="B"><i></i>CAPTURES</span>
+  </div>
+  <span class="pcap" aria-hidden="true">PICTURE SHAPE</span>
+  <div class="sw on-a" id="aspect" role="switch" aria-checked="false" tabindex="0"
+   aria-label="Picture shape: off is 4:3 standard, on is 16:9 widescreen">
+   <span class="sel-side a" data-v="4:3">4:3<i></i></span>
+   <span class="slot"><span class="lever"></span></span>
+   <span class="sel-side b" data-v="16:9"><i></i>16:9</span>
   </div>
  </div>
 </div>
@@ -497,7 +484,12 @@ $('start').onclick=()=>post('start');
 $('stop').onclick=()=>{if(D&&D.recording&&!confirm('Stop recording now? The take is kept and held for your review.'))return;post('stop')};
 $('next').onchange=()=>post('next',$('next').value);
 $('dest').onchange=()=>post('destination',$('dest').value);
-$('aspect').onclick=e=>{const b=e.target.closest('button[data-v]');if(b&&!b.disabled)post('aspect',b.dataset.v)};
+// the picture shape switch: the side clicked, or the other side; locked while recording (the shape is set when it starts)
+function setShape(v){const a=$('aspect');if(a.classList.contains('locked'))return;
+ a.classList.toggle('on-a',v!='16:9');a.classList.toggle('on-b',v=='16:9');post('aspect',v)}
+$('aspect').onclick=e=>{const side=e.target.closest('[data-v]');setShape(side?side.dataset.v:($('aspect').classList.contains('on-b')?'4:3':'16:9'))};
+$('aspect').onkeydown=e=>{if(e.key==' '||e.key=='Enter'){e.preventDefault();$('aspect').click()}
+ else if(e.key=='ArrowLeft')setShape('4:3');else if(e.key=='ArrowRight')setShape('16:9')};
 function stepItem(d){if(!D||!D.items.length)return;const ids=D.items.map(t=>t.id).concat(['']);
  let i=ids.indexOf(D.next||'');i=Math.max(0,Math.min(ids.length-1,i+d));post('next',ids[i])}
 $('chdown').onclick=()=>stepItem(-1); $('chup').onclick=()=>stepItem(1);
@@ -793,7 +785,8 @@ async function refresh(){
   okLamp('l-video',d.signal===true||!!r,'VIDEO'); okLamp('l-audio',!!d.audio||(r&&r.peak_db!=null),'AUDIO'); okLamp('l-disk',!!d.card,'DISK');
   lamp('l-moving',d.step=='wait'); lamp('l-upload',!!d.upload_progress&&d.step!='wait');
   const asp=r?r.aspect:d.aspect; lamp('l-wide',asp=='16:9'); if(source=='A')$('crt').classList.toggle('wide',asp=='16:9');
-  [...$('aspect').children].forEach(b=>{b.classList.toggle('on',b.dataset.v==asp);b.disabled=!!r});
+  {const a=$('aspect'),w=asp=='16:9';a.classList.toggle('on-a',!w);a.classList.toggle('on-b',w);a.setAttribute('aria-checked',w);
+   a.classList.toggle('locked',!!r);a.setAttribute('aria-disabled',!!r);a.title=r?'Set before recording starts':'4:3 for most tapes; 16:9 for a camcorder\u2019s widescreen mode'}
   // panel
   if(d.standby)sb={at:Date.now()-d.standby.age*1000,cycle:d.standby.cycle*1000};
   panel(d); standbyTick();
