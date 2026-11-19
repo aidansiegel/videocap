@@ -682,6 +682,8 @@ function status(j){
   const mp4=st(['MP4'])[0];
   return['wait',mp4&&mp4!='done'?'Waiting for you \u00b7 MP4 still uploading':'Waiting for you'];}
  if(st(['store']).includes('pending'))return['busy',prog||'Moving to the masters disk\u2026'];
+ const waiting=j.items.find(i=>i.state=='pending'&&i.note);  // retrying: say why, not "Uploading"
+ if(waiting&&!prog){const n=waiting.note.replace(/^retrying:\s*/,'');return['busy',n.charAt(0).toUpperCase()+n.slice(1)+(/retry/.test(n)?'':' (will retry)')]}
  if(all.includes('pending'))return['busy',prog?'Uploading \u00b7 '+prog:'Uploading\u2026'];
  if(!all.length)return['ok','Saved on this disk'];
  const where=[];if(st(['store']).includes('done'))where.push('masters disk');
