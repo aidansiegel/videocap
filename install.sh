@@ -1,26 +1,28 @@
 #!/usr/bin/env bash
 # Install or update videocap on Raspberry Pi OS, Debian or Ubuntu, as root:
 #
-#   sudo ./install.sh [--no-apt] [--no-start]
+#   sudo ./install.sh [--no-apt] [--no-start] [--image]
 #
 # Installs the packages it needs (ffmpeg, rclone, v4l-utils, alsa-utils, avahi), copies videocap to /opt/videocap, puts the
 # example settings at /etc/videocap/videocap.conf if there are none yet (an existing file is never touched), and
 # installs and starts the systemd service. Refuses to restart a station that is recording.
+# --image: building a disk image (in a chroot, no systemd running): no apt, no start, the service enabled for boot.
 set -euo pipefail
 
-apt=yes start=yes
+apt=yes start=yes image=no
 for a in "$@"; do
     case "$a" in
         --no-apt) apt=no ;;
         --no-start) start=no ;;
-        *) echo "usage: sudo $0 [--no-apt] [--no-start]" >&2; exit 2 ;;
+        --image) apt=no start=no image=yes ;;
+        *) echo "usage: sudo $0 [--no-apt] [--no-start] [--image]" >&2; exit 2 ;;
     esac
 done
 [[ $EUID -eq 0 ]] || { echo "run as root: sudo $0" >&2; exit 1; }
 here="$(cd "$(dirname "$0")" && pwd)"
 [[ -f "$here/videocap/app.py" ]] || { echo "run this from the videocap folder" >&2; exit 1; }
 
-if systemctl is-active --quiet videocap; then
+if [[ $image == no ]] && systemctl is-active --quiet videocap; then
     port="$(sed -n 's/^WEB_PORT=\([0-9]*\).*/\1/p' /etc/videocap/videocap.conf 2>/dev/null | tail -1)"
     if status="$(curl -fsS -m 5 "http://127.0.0.1:${port:-80}/status.json" 2>/dev/null)"; then
         if python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if d.get("recording") or d["state"]=="finishing" else 1)' <<<"$status"; then
@@ -32,7 +34,7 @@ fi
 
 if [[ $apt == yes ]]; then
     apt-get update -q
-    DEBIAN_FRONTEND=noninteractive apt-get install -y -q python3 ffmpeg rclone v4l-utils alsa-utils avahi-daemon avahi-utils curl
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -q python3 ffmpeg rclone v4l-utils alsa-utils avahi-daemon avahi-utils exfatprogs curl
 fi
 for t in python3 ffmpeg ffprobe rclone v4l2-ctl cmp lsblk findmnt; do
     command -v "$t" >/dev/null || echo "warning: $t not found" >&2
@@ -51,9 +53,12 @@ else
     echo "Kept your /etc/videocap/videocap.conf (the latest example is in $here/videocap.conf.example)"
 fi
 install -m 644 "$here/systemd/videocap.service" /etc/systemd/system/videocap.service
-systemctl daemon-reload
+if [[ -d /run/systemd/system ]]; then systemctl daemon-reload; fi
 
-if [[ $start == yes ]]; then
+if [[ $image == yes ]]; then
+    systemctl enable videocap >/dev/null
+    echo "Installed in the image, and enabled for boot."
+elif [[ $start == yes ]]; then
     systemctl enable videocap >/dev/null
     systemctl restart videocap
     sleep 2

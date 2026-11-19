@@ -1,0 +1,10 @@
+python3
+ffmpeg
+rclone
+v4l-utils
+alsa-utils
+avahi-daemon
+avahi-utils
+exfatprogs
+curl
+git

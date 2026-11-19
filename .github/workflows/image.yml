@@ -1,0 +1,55 @@
+# Builds a ready-made Raspberry Pi OS Lite image with Videocap installed and running at boot, with pi-gen (the
+# Raspberry Pi Foundation's own image builder) through usimd/pi-gen-action. On a version tag, the image is attached
+# to that release; run it by hand (Actions -> Pi image -> Run workflow) to get it as a workflow artifact.
+name: Pi image
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  image:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Put a copy of the repository in the image stage
+        run: |
+          mkdir -p image/stage-videocap/00-videocap/files/src
+          git archive HEAD | tar -x -C image/stage-videocap/00-videocap/files/src
+
+      - uses: usimd/pi-gen-action@v2
+        id: build
+        with:
+          image-name: videocap-${{ github.ref_name }}
+          stage-list: stage0 stage1 stage2 ./image/stage-videocap
+          release: trixie
+          hostname: videocap
+          # No password: the account stays locked unless you set one with Raspberry Pi Imager's settings (user, Wi-Fi,
+          # SSH). The station itself needs no login: open http://videocap.local/.
+          username: videocap
+          locale: en_US.UTF-8
+          keyboard-keymap: us
+          keyboard-layout: English (US)
+          timezone: Etc/UTC
+          compression: xz
+          compression-level: 6
+          increase-runner-disk-size: true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: videocap-pi-image
+          path: ${{ steps.build.outputs.image-path }}
+          compression-level: 0
+          retention-days: 30
+
+      - name: Attach to the release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.ref_name }}" "${{ steps.build.outputs.image-path }}" --clobber

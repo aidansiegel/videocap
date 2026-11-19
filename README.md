@@ -29,7 +29,11 @@ About $225 before the disk: a Pi 5 4 GB ($110), its 27 W power supply ($12), a c
 
 ## Install
 
-On Raspberry Pi OS, Debian or Ubuntu:
+**Easiest, on a Raspberry Pi:** download `videocap-…img.xz` from the
+[latest release](https://github.com/aidansiegel/videocap/releases), write it to a microSD card with Raspberry Pi
+Imager (*Choose OS → Use custom*; in its settings, add your Wi-Fi), boot the Pi, and open **http://videocap.local/**.
+
+**Or on Raspberry Pi OS, Debian or Ubuntu you already have:**
 
 ```bash
 git clone https://github.com/aidansiegel/videocap.git && cd videocap
