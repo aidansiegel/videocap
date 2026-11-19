@@ -83,3 +83,31 @@ class Announcer:
         except subprocess.TimeoutExpired:
             p.kill()
             return ""
+
+
+class Service:
+    """Advertise the station as a _videocap._tcp service (DNS-SD), so the desktop app and other tools find every
+    station on the network by itself, whatever its hostname. Avahi renames it if the name is taken."""
+
+    def __init__(self, station, port, version):
+        self.args = ["avahi-publish", "-s", "Videocap on %s" % station, "_videocap._tcp", str(port),
+                     "path=/", "station=%s" % station, "version=%s" % version]
+        self.proc = None
+        self.quit = False
+
+    def start(self):
+        if shutil.which("avahi-publish"):
+            threading.Thread(target=self.run, daemon=True).start()
+
+    def run(self):
+        while not self.quit:
+            self.proc = subprocess.Popen(self.args, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                         stderr=subprocess.DEVNULL)
+            self.proc.wait()
+            if not self.quit:
+                time.sleep(30)  # avahi-daemon restarted or went away: try again
+
+    def stop(self):
+        self.quit = True
+        if self.proc and self.proc.poll() is None:
+            self.proc.terminate()

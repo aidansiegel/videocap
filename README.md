@@ -70,6 +70,12 @@ To try it without hardware, run `./demo.sh` on Linux or a Mac (needs ffmpeg and 
 **Not a Linux person?** Ask an AI coding agent (Codex, Claude Code...) to set it up for you: point it at
 [AGENTS.md](https://github.com/aidansiegel/videocap/blob/main/AGENTS.md), which tells it how, and what never to touch.
 
+### A desktop app to find and watch your stations
+
+[Videocap for Mac, Windows and Linux](https://github.com/aidansiegel/videocap/blob/main/desktop/README.md) finds the
+stations on your network by itself, opens their pages in their own windows, and sends a notification when a capture
+finishes or needs you. Download it from the [latest release](https://github.com/aidansiegel/videocap/releases).
+
 ## More
 
 - [Guide](https://github.com/aidansiegel/videocap/blob/main/docs/guide.md): day to day, settings, live sources, widescreen, what it writes

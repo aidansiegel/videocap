@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en-US">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Videocap</title>
+<style>
+:root{--chassis:#141518;--panel:#1f2125;--panel2:#272a2f;--edge:#08090a;--rule:#33363c;--text:#e4e1d9;--mut:#9a978f;--faint:#6c6a65;
+ --vfd:#62f5d2;--vfd-glow:rgba(98,245,210,.55);--rec:#ff4436;--amber:#ffb547;--play:#4ee38f;
+ --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;--sans:"Inter","InterVariable",-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{background:var(--chassis)}
+body{margin:0;color:var(--text);font:14px/1.4 var(--sans);background:linear-gradient(180deg,#1a1b1f,#121316) fixed;min-height:100vh}
+main{max-width:640px;margin:0 auto;padding:18px 16px 32px}
+h1{margin:0 0 4px;text-align:center;font:800 13px var(--sans);letter-spacing:.2em;text-transform:uppercase;
+ background:linear-gradient(180deg,#f4f4f4,#9ea1a6 55%,#d8dadd);-webkit-background-clip:text;background-clip:text;color:transparent}
+.sub{text-align:center;color:var(--mut);font-size:12.5px;margin:0 0 16px}
+ul{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.st{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:4px 12px;align-items:center;padding:12px 14px;border-radius:10px;
+ background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--edge)}
+.lamp{width:10px;height:10px;border-radius:50%;background:var(--faint);grid-row:1/span 2}
+.rec .lamp{background:var(--rec);box-shadow:0 0 8px var(--rec)} .go .lamp{background:var(--play);box-shadow:0 0 8px var(--play)}
+.wait .lamp{background:var(--amber);box-shadow:0 0 8px var(--amber)} .bad .lamp{background:var(--rec);opacity:.75}
+.name{font-weight:700;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.name small{font:500 11.5px var(--mono);color:var(--faint);margin-left:8px}
+.state{font:13px var(--mono);color:var(--vfd);text-shadow:0 0 5px var(--vfd-glow);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bad .state{color:#ff8a7f;text-shadow:none} .detail{grid-column:2;font-size:12px;color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acts{grid-column:3;grid-row:1/span 3;display:flex;gap:6px}
+button{appearance:none;min-height:36px;min-width:80px;padding:0 14px;border-radius:7px;border:1px solid #3a3e44;cursor:pointer;
+ background:linear-gradient(180deg,#34373d,#25272b);color:var(--text);font:700 13px var(--sans);box-shadow:0 1px 0 rgba(255,255,255,.1) inset,0 2px 0 #0a0b0c}
+button.open{background:linear-gradient(180deg,#37965a,#2a7546);border-color:#173f27;color:#fff}
+button.quiet{background:none;box-shadow:none;min-width:0;color:var(--mut)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--vfd);outline-offset:2px}
+.empty{padding:28px 16px;text-align:center;color:var(--mut);border:1px dashed var(--rule);border-radius:10px}
+.empty b{display:block;color:var(--text);font-size:15px;margin-bottom:6px}
+.empty .spin{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--vfd);margin-right:8px;animation:blink 1.2s steps(2) infinite}
+@keyframes blink{50%{opacity:.2}}
+form{margin-top:18px;display:grid;gap:6px}
+label{font:700 10px var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--faint)}
+.row{display:flex;gap:8px}
+input{flex:1;min-width:0;min-height:36px;border-radius:7px;border:1px solid #4a4e55;background:#0b0d0d;color:var(--text);padding:0 10px;font:14px var(--sans)}
+.hint{font-size:12px;color:var(--mut);margin:0} .err{font-size:12.5px;color:#ff8a7f;margin:0}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</head>
+<body>
+<main>
+ <h1>Videocap</h1>
+ <p class="sub" id="sub">Stations on your network</p>
+ <div class="empty" id="empty"><b><span class="spin" aria-hidden="true"></span>Looking for stations&hellip;</b>
+  A station shows up here by itself when it's on and connected to the same network as this computer.
+  If yours doesn't appear in a minute, add it by its address below.</div>
+ <ul id="list" aria-live="polite"></ul>
+ <form id="add">
+  <label for="addr">Add a station by its address</label>
+  <div class="row"><input id="addr" placeholder="videocap.local or 192.168.1.20" autocomplete="off" spellcheck="false" aria-describedby="addhint adderr"><button type="submit">Add</button></div>
+  <p class="hint" id="addhint">The address you'd type into a browser to open the station's page.</p>
+  <p class="err" id="adderr" role="alert" hidden></p>
+ </form>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+function render(list){
+ $('empty').hidden=list.length>0;
+ $('sub').textContent=list.length?list.length+' station'+(list.length==1?'':'s')+' on your network':'Stations on your network';
+ $('list').innerHTML=list.map(s=>'<li class="st '+esc(s.state.tone)+'"><span class="lamp" aria-hidden="true"></span>'+
+  '<div class="name">'+esc(s.name)+'<small>'+esc(new URL(s.url).host)+'</small></div>'+
+  '<div class="acts"><button class="open" data-open="'+esc(s.url)+'">Open<span hidden> '+esc(s.name)+'</span></button>'+
+  (s.found=='added'?'<button class="quiet" data-remove="'+esc(s.url)+'" aria-label="Remove '+esc(s.name)+'">Remove</button>':'')+'</div>'+
+  '<div class="state" style="grid-column:2">'+esc(s.state.label)+'</div>'+
+  (s.state.detail?'<div class="detail">'+esc(s.state.detail)+'</div>':'')+'</li>').join('');
+}
+$('list').onclick=e=>{const o=e.target.closest('[data-open]'),r=e.target.closest('[data-remove]');
+ if(o)window.videocap.open(o.dataset.open);
+ if(r&&confirm('Remove '+r.getAttribute('aria-label').slice(7)+' from this list? It reappears if it’s found on the network.'))window.videocap.remove(r.dataset.remove)};
+$('add').onsubmit=async e=>{e.preventDefault();const b=e.submitter;b.disabled=true;b.textContent='Checking…';
+ const res=await window.videocap.add($('addr').value);b.disabled=false;b.textContent='Add';
+ $('adderr').hidden=!res.error;$('adderr').textContent=res.error||'';$('addr').setAttribute('aria-invalid',res.error?'true':'false');
+ if(!res.error)$('addr').value=''};
+window.videocap.onStations(render);
+</script>
+</body>
+</html>

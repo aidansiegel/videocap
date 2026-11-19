@@ -1,0 +1,31 @@
+{
+  "name": "videocap-desktop",
+  "productName": "Videocap",
+  "version": "0.0.1-alpha.3",
+  "description": "Finds the Videocap stations on your network, opens their pages, and tells you when a capture finishes or needs you",
+  "main": "main.js",
+  "license": "GPL-3.0-or-later",
+  "author": "Videocap <videocap@aidansiegel.com>",
+  "homepage": "https://github.com/aidansiegel/videocap",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --publish never"
+  },
+  "dependencies": {
+    "bonjour-service": "1.3.0"
+  },
+  "devDependencies": {
+    "electron": "33.2.1",
+    "electron-builder": "25.1.8"
+  },
+  "build": {
+    "appId": "com.aidansiegel.videocap",
+    "productName": "Videocap",
+    "artifactName": "Videocap-${version}-${os}-${arch}.${ext}",
+    "files": ["main.js", "preload.js", "index.html", "stations.js", "icon.png"],
+    "mac": { "target": [{ "target": "dmg", "arch": ["universal"] }], "category": "public.app-category.video", "icon": "icon.png" },
+    "win": { "target": [{ "target": "nsis", "arch": ["x64"] }], "icon": "icon.png" },
+    "nsis": { "oneClick": true, "perMachine": false },
+    "linux": { "target": [{ "target": "AppImage", "arch": ["x64", "arm64"] }], "category": "AudioVideo", "icon": "icon.png" }
+  }
+}

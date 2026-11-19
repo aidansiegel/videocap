@@ -5,3 +5,5 @@ build/
 dist/
 .venv/
 image/stage-videocap/00-videocap/files/
+desktop/node_modules/
+desktop/dist/

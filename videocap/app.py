@@ -903,6 +903,9 @@ class App:
         self.pause_others(False)  # in case a crash left them frozen
         self.announcer = mdns.Announcer(self.conf["NETWORK_NAME"])
         self.announcer.start()
+        from . import __version__
+        self.service = mdns.Service(self.station(), self.conf["WEB_PORT"], __version__)
+        self.service.start()
         log("videocap on %s: profile %s, %d items listed, web page on port %s"
             % (self.station(), self.conf["PROFILE"], len(self.items), self.conf["WEB_PORT"]))
         try:
@@ -919,4 +922,5 @@ class App:
                 self.finish("videocap shutting down")
             self.pause_others(False)
             self.announcer.stop()
+            self.service.stop()
             self.led.restore()
