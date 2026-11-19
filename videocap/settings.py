@@ -8,6 +8,7 @@ import glob
 import os
 import re
 import subprocess
+import threading
 
 from . import config, hardware
 
@@ -159,7 +160,15 @@ def check_path(value):
     return p
 
 
+_save_lock = threading.Lock()
+
+
 def save(path, updates):
+    with _save_lock:
+        _save(path, updates)
+
+
+def _save(path, updates):
     """Write KEY=value updates into the settings file: an existing (uncommented) line is changed where it is, a new
     one goes at the end, and "" removes a destination's line (other keys keep the line, empty). Atomic, with the
     previous file kept as <file>.bak."""
@@ -190,13 +199,10 @@ def save(path, updates):
         if not any(line.startswith("# --- Set on the web page") for line in out):
             out += ["", "# --- Set on the web page"]
         out += ["%s=%s" % (k, updates[k]) for k in new]
-    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     if os.path.exists(path):
-        with open(path) as f, open(path + ".bak", "w") as b:
-            b.write(f.read())
-    with open(path + ".new", "w") as f:
-        f.write("\n".join(out) + "\n")
-    os.replace(path + ".new", path)
+        with open(path) as f:
+            hardware.write_atomic(path + ".bak", f.read())
+    hardware.write_atomic(path, "\n".join(out) + "\n")
 
 
 def setup_done():

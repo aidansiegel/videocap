@@ -24,7 +24,7 @@ import threading
 import time
 from datetime import datetime
 
-from . import collection, config
+from . import collection, config, hardware
 from .hardware import log, lowprio
 
 VIDEO_EXT = {"mp4", "mkv", "mov", "m4v", "avi", "mpg", "mpeg", "ts"}
@@ -57,10 +57,7 @@ class Queue:
         return self.app.conf
 
     def save(self):
-        os.makedirs(os.path.dirname(self.path), exist_ok=True)
-        with open(self.path + ".tmp", "w") as f:
-            json.dump(self.jobs, f, indent=1, ensure_ascii=False)
-        os.replace(self.path + ".tmp", self.path)
+        hardware.write_atomic(self.path, json.dumps(self.jobs, indent=1, ensure_ascii=False))
 
     def settings(self, job):
         """The settings a capture was queued with: the destination chosen when it started, over today's file."""
@@ -118,8 +115,8 @@ class Queue:
         """A reviewed take: send whatever of it is held."""
         with self.lock:
             j = self.find(name)
-            if not j:
-                return False
+            if not j or j.get("discarded"):
+                return False  # (a set-aside take, from a page that hadn't caught up)
             mdir = self.settings(j)["MASTERS_DIR"]
             if not any(it["kind"] == "store" for it in j["items"]) and mdir and j["masters"] \
                     and not any(os.path.isabs(m) for m in j["masters"]):
@@ -151,8 +148,8 @@ class Queue:
                 p = os.path.join(self.app.card_dir(j["card"]), src)
                 if not os.path.exists(p):
                     continue
-                if os.path.isabs(src):  # on MASTERS_DIR: same filesystem, so a rename
-                    aside = os.path.join(os.path.dirname(os.path.dirname(src)), "discarded")
+                if os.path.isabs(src):  # on MASTERS_DIR: a folder inside it, on the same disk, so a rename
+                    aside = os.path.join(os.path.dirname(src), "discarded")
                 else:
                     aside = os.path.join(os.path.dirname(p), "discarded")
                 os.makedirs(aside, exist_ok=True)
@@ -203,7 +200,8 @@ class Queue:
                 size = sum(os.path.getsize(os.path.join(self.app.card_dir(card_id), src)) for src in j["masters"]
                            if not os.path.isabs(src) and os.path.exists(os.path.join(self.app.card_dir(card_id), src)))
                 dest = st["dest"]
-                if size and os.path.isdir(dest) and shutil.disk_usage(dest).free >= size + self.spare():
+                if size and os.path.isdir(dest) and not hardware.unmounted_mount_point(dest) \
+                        and shutil.disk_usage(dest).free >= size + self.spare():
                     total += size
         return total
 
@@ -239,7 +237,7 @@ class Queue:
     def store(self, job, item):
         dest, card = item["dest"], self.app.card_dir(job["card"])
         srcs = [s for s in job["masters"] + job.get("sidecars", []) if not os.path.isabs(s)]
-        if not os.path.isdir(dest):  # never created here: missing usually means that disk isn't mounted
+        if not os.path.isdir(dest) or hardware.unmounted_mount_point(dest):  # never created here: that disk isn't in
             return self.mark(item, "failed", "%s isn't there (disk not mounted?); the master stays on the capture "
                                              "disk" % dest)
         todo = [s for s in srcs if os.path.exists(os.path.join(card, s))]
@@ -264,6 +262,9 @@ class Queue:
                 self.progress = "%s: moving the master, %.1f of %.1f GB" % (job["name"], (done + got) / 1e9,
                                                                            size / 1e9)
             self.progress = "%s: checking the copy" % job["name"]
+            if not cp.returncode:
+                with contextlib.suppress(OSError):
+                    hardware.on_disk(q + ".part")  # compare what's really on the masters disk, not the memory cache
             if cp.returncode or subprocess.run(lowprio(["cmp", "-s", "--", p, q + ".part"])).returncode:
                 with contextlib.suppress(OSError):
                     os.remove(q + ".part")
@@ -289,8 +290,12 @@ class Queue:
             job["masters"] = [os.path.join(dest, os.path.basename(s)) for s in job["masters"]]
             job["sidecars"] = [os.path.join(dest, os.path.basename(s)) for s in job.get("sidecars", [])]
             for s in todo:
-                if s.endswith(".mkv"):
-                    os.remove(os.path.join(card, s))  # the log and report stay on the capture disk as well
+                if s.endswith(".mkv"):  # the log and report stay on the capture disk as well
+                    try:
+                        os.remove(os.path.join(card, s))
+                    except OSError as e:  # the copy is checked and listed; this one is just a spare now
+                        log("couldn't delete %s from the capture disk after moving it (%s); it's safe to delete by "
+                            "hand" % (s, e.strerror))
         log("moved %s's master to %s" % (job["name"], dest))
         self.mark(item, "done", "moved to the masters disk")
 

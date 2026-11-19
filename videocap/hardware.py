@@ -30,6 +30,49 @@ def read(path):
         return ""
 
 
+def write_atomic(path, text):
+    """Write a small file so that a power cut leaves the old one or the new one, never an empty or half one."""
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    with open(path + ".tmp", "w") as f:
+        f.write(text)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(path + ".tmp", path)
+    with contextlib.suppress(OSError):
+        fd = os.open(os.path.dirname(os.path.abspath(path)), os.O_RDONLY)
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+
+
+def on_disk(path):
+    """Flush a file to its disk and drop it from memory, so that reading it back reads the disk, not the cache."""
+    fd = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+        if hasattr(os, "posix_fadvise"):
+            os.posix_fadvise(fd, 0, 0, os.POSIX_FADV_DONTNEED)
+    finally:
+        os.close(fd)
+
+
+def unmounted_mount_point(path):
+    """The mount point in /etc/fstab that path is under but that isn't mounted now (so writing there would fill the
+    system disk instead), or None."""
+    path = os.path.realpath(path)
+    try:
+        with open("/etc/fstab") as f:
+            points = [line.split()[1] for line in f if line.strip() and not line.lstrip().startswith("#")
+                      and len(line.split()) > 1]
+    except OSError:
+        return None
+    for mp in sorted(points, key=len, reverse=True):
+        if mp not in ("/", "none", "swap") and (path == mp or path.startswith(mp.rstrip("/") + "/")):
+            return None if os.path.ismount(mp) else mp
+    return None
+
+
 def lowprio(cmd):
     """Run a disk-heavy command at the lowest CPU and disk priority, so it never starves a capture."""
     pre = ["nice", "-n", "19"] if shutil.which("nice") else []

@@ -31,10 +31,7 @@ DETAIL_KEYS = ("id", "title", "format", "date", "notes")  # what the page can ty
 
 
 def save_json(path, data):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path + ".tmp", "w") as f:
-        json.dump(data, f, indent=1, ensure_ascii=False)
-    os.replace(path + ".tmp", path)
+    hardware.write_atomic(path, json.dumps(data, indent=1, ensure_ascii=False))
 
 
 class App:
@@ -338,6 +335,11 @@ class App:
         os.makedirs(folder, exist_ok=True)
         item = self.capture_item()
         base = self.take_base(folder, item)
+        if not standby and os.path.exists(base + ".log"):  # a take already has this minute's name: keep both
+            n = 2
+            while os.path.exists("%s (%d).log" % (base, n)):
+                n += 1
+            base = "%s (%d)" % (base, n)
         if standby and os.path.exists(base + ".log"):
             # a take already has this minute's name (one just stopped by hand): a standby recording would write over
             # it, then delete it. Stand by from the next minute.
@@ -415,10 +417,15 @@ class App:
         new = self.take_base(folder, rec.item, rec.started)
         if new == rec.base or glob.glob(glob.escape(new) + "[._]*"):
             return
+        done = []
         try:
             for p in glob.glob(glob.escape(rec.base) + "_*") + glob.glob(glob.escape(rec.base) + ".*"):
                 os.rename(p, new + p[len(rec.base):])
-        except OSError as e:
+                done.append(p)
+        except OSError as e:  # put back what was renamed, so the take keeps one name
+            for p in done:
+                with contextlib.suppress(OSError):
+                    os.rename(new + p[len(rec.base):], p)
             log("couldn't rename %s: %s" % (os.path.basename(rec.base), e))
             return
         log("renamed %s to %s" % (os.path.basename(rec.base), os.path.basename(new)))
@@ -701,7 +708,9 @@ class App:
     def masters_free(self):
         dest = self.dest_conf()["MASTERS_DIR"]
         try:
-            return shutil.disk_usage(dest).free / 1e9 if dest and os.path.isdir(dest) else None
+            if not dest or not os.path.isdir(dest) or hardware.unmounted_mount_point(dest):
+                return None
+            return shutil.disk_usage(dest).free / 1e9
         except OSError:
             return None
 
