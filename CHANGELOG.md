@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- **Setup on the page:** what's plugged in, then the settings (TV standard, capture stick suggested from what it
+  calls itself, input, disk, time zone, destinations...), each saved as it changes. Opens by itself the first time.
+- **AGENTS.md:** how an AI agent (Codex, Claude Code) installs, sets up, runs and fixes a station for someone, and
+  what it must never touch.
+- **A ready-made Raspberry Pi image**, built on GitHub with pi-gen.
+- **Tested on real hardware:** a Raspberry Pi 5 with a Hauppauge USB-Live2 Rev E1, recapturing Hi8 tapes.
+- **Hardening** from a failure-case review: no way to add settings-file lines from the page (a hidden line break could
+  have added a HOOK= run as root), no POSTs from other sites' pages, moves checked against the disk before the
+  original is deleted, crash-safe state files, unmounted masters disks caught, and more.
+
 ## 0.0.1 alpha 2 (2026-11-18)
 
 - The station announces itself as `videocap.local` (Avahi), so the page has the same address whatever the machine is

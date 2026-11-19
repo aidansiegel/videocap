@@ -89,8 +89,14 @@ use.
 
 ## Settings
 
-All in `/etc/videocap/videocap.conf`, explained in [videocap.conf.example](../videocap.conf.example). Most apply from
-the next recording without a restart. Logs: `journalctl -u videocap`.
+The easy way is **Setup** on the web page (top right; it opens by itself the first time): it shows what's plugged
+in, and sets the TV standard, capture stick, input, capture disk, time zone, collection name, network name, review,
+and where captures go. Each change is checked and saved at once into `/etc/videocap/videocap.conf`, keeping your
+comments and a `.bak` of the previous file.
+
+Everything is in that file, explained in [videocap.conf.example](../videocap.conf.example). A few settings are
+file-only, because the page has no login: `HOOK`, `RCLONE_CONFIG`, `VIDEO_DEVICE`, `AUDIO_DEVICE`, `PAUSE_UNITS`.
+Most apply from the next recording without a restart. Logs: `journalctl -u videocap`.
 
 - **Where captures go:** as shipped, everything stays on the disk you plug in. Name destinations in the settings
   file and pick one on the page under *Send captures to*; each capture goes where the picker pointed when it
