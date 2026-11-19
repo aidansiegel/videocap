@@ -22,7 +22,7 @@ FIELDS = {
     "COLLECTION": ("text", "Collection name"),
     "DIGITIZED_BY": ("text", "Digitized by"),
     "MASTER_REVIEW": ("bool", "Review masters before they're sent"),
-    "NETWORK_NAME": ("name", "Network name"),
+    "NETWORK_NAME": ("name", "Web address"),
     "DEFAULT_DESTINATION": ("dest", "Where captures go"),
 }
 DEST_FIELDS = {"LABEL": "text", "MASTERS_DIR": "path", "MP4_REMOTE": "remote", "MASTER_REMOTE": "remote"}
@@ -132,7 +132,7 @@ def check(key, value, conf):
     elif kind == "name":
         value = value.lower().removesuffix(".local")
         if not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?", value):
-            raise ValueError("Use letters, digits and dashes only, like videocap or den-vcr.")
+            raise ValueError("Use letters, digits and dashes only, like videocap or den-vcr (no spaces).")
     elif kind in ("text", "label"):
         if len(value) > 100 or re.search(r"[\x00-\x1f#]", value):
             raise ValueError("Keep it under 100 characters, on one line, without #.")

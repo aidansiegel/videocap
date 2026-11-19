@@ -7,8 +7,8 @@
 # Names this station in each take's report and in hooks. Blank = this machine's host name.
 STATION_NAME=
 
-# The web page's address on your network: http://videocap.local/ (a second station takes videocap-2.local, and so
-# on). Blank = don't announce one; the page is still at this machine's own name or address.
+# The hostname the station announces for its web page: http://videocap.local/ (a second station takes
+# videocap-2.local, and so on). Blank = announce none; the page is still at this machine's own hostname or address.
 NETWORK_NAME=videocap
 
 # NTSC for sources from the Americas and Japan, PAL for most of Europe, Asia, Africa and Oceania.

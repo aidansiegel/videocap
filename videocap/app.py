@@ -814,6 +814,7 @@ class App:
             "device": dev_name, "audio": bool(self.audio or c["TEST_SOURCE"]), "signal": self.signal,
             "card": self.card and {"label": self.card.get("label") or "", "fstype": self.card.get("fstype")},
             "address": self.address(), "setup_done": settings.setup_done(),
+            "host": socket.gethostname().split(".")[0], "port": c["WEB_PORT"],
             "writable": os.access(self.conf_file() if os.path.exists(self.conf_file()) else folder, os.W_OK),
             "test": bool(c["TEST_SOURCE"]),
         }

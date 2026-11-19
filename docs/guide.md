@@ -33,7 +33,7 @@ Things that look wrong but aren't:
 
 The station announces itself on your network, so its page is at **http://videocap.local/** from a phone or
 computer on the same network, whatever the machine is called. A second station takes `videocap-2.local`, and so on.
-Change or turn off the name with `NETWORK_NAME`.
+Change or turn it off with *Web address* in Setup (or `NETWORK_NAME` in the settings file).
 
 If a device can't open `.local` names (some Android phones, some Windows setups), use the machine's address
 instead: `hostname -I` on the station prints it. Give the station a fixed address so that one never changes,
@@ -90,7 +90,7 @@ use.
 ## Settings
 
 The easy way is **Setup** on the web page (top right; it opens by itself the first time): it shows what's plugged
-in, and sets the TV standard, capture stick, input, capture disk, time zone, collection name, network name, review,
+in, and sets the TV standard, capture stick, input, capture disk, time zone, collection name, web address, review,
 and where captures go. Each change is checked and saved at once into `/etc/videocap/videocap.conf`, keeping your
 comments and a `.bak` of the previous file.
 
