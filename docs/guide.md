@@ -127,16 +127,91 @@ Most apply from the next recording without a restart. Logs: `journalctl -u video
 - **Hooks** (`HOOK`): a program run after each take is finished, approved or discarded, for checksum manifests,
   transcripts, notifications or a spreadsheet. Example: [hooks/inventory-csv.sh](../hooks/inventory-csv.sh).
 
-## LEDs (Raspberry Pi)
+## Lights and the button (no screen needed)
 
-| Green LED | Meaning |
+On a Raspberry Pi, the two lights next to the power socket show what the station is doing, so you can record with no
+screen, phone or network. Count the blinks. **Print a card** under Help on the page keeps a copy with the station.
+
+| Light | Meaning |
 | --- | --- |
-| Heartbeat | Waiting for the capture stick or the disk |
-| Solid | Ready, or finished: safe to unplug the disk |
-| Slow blink | Recording |
-| Fast blink | Finishing the files: don't unplug anything |
-| Mostly on, short blink off | Moving or uploading: leave the disk connected |
-| Off, red blinking | Something went wrong: see the web page |
+| Red, steady | Recording |
+| Green, 3 blinks, pause | Ready: everything is plugged in. Press play (it records from the first frame) |
+| Green, 2 blinks, pause | Connect the capture disk |
+| Green, 1 blink, pause | Plug in the capture device |
+| Green, fast flicker | Finishing the files: don't unplug anything |
+| Green, on with a short blink off | Moving or uploading: leave the disk connected |
+| Green, steady | Finished, or made safe with the button: safe to unplug the disks |
+| Red, 1 blink, pause | Disk problem: it's full, or it couldn't be read |
+| Red, 2 blinks, pause | The recording couldn't start: check the capture device |
+| Red, 3 blinks, pause | A recording stopped on an error: see the page when you can |
+| Both, fast flicker | Shutting down: wait for the red light to stay on |
+
+**Swapping disks without a screen:** a disk is safe to pull at 1 or 2 green blinks or steady green. Any other time,
+press the Raspberry Pi 5's power button once (both lights flicker to say it heard you). It stops a recording and
+finishes its files, stops standing by, pauses moves and uploads (a cut-off copy is simply done again later), and
+unmounts everything on a USB disk, its own capture disks and any other (a masters disk the system mounts, say); then
+the light goes steady green. If something won't let go of a disk, it says what (on the page, and with one red blink)
+and keeps trying instead of saying it's safe. Nothing records again until the swap.
+
+A disk the system mounts at boot (in `/etc/fstab`) doesn't come back by itself after a swap. Give it
+`x-systemd.automount,x-systemd.idle-timeout=120` in its options, so it's mounted when something opens it and
+unmounted when nothing has for two minutes:
+
+```
+UUID=... /mnt/masters btrfs defaults,noatime,nofail,x-systemd.automount,x-systemd.idle-timeout=120 0 0
+```
+ Swap the disks: a disk going in or coming out carries on
+by itself, as does a second press or REC on the page. A take stopped this way is held for review, like one stopped on
+the page.
+
+**A disk pulled out anyway** is looked over the next time it's plugged in, before anything is written to it (FAT and
+exFAT, which are left half-written; fixed by itself where that's safe, or reported on the page). A recording cut off
+this way keeps what it had.
+
+**Asking it what's going on:** press the power button twice, and the green light spells out the status in Morse
+code (red keeps showing whether it's recording): `REC B004 V001 23M FREE 85G`, `READY B004 V002`, `ERR DISK FULL`,
+`SAFE`... Press three times for its network address (`IP 192.168.1.23 PORT 8091`), to find its page on a network you
+don't know. Each message starts with a one-second flash and ends with `.-.-.`; it's 12 words a minute
+(`MORSE_UNIT_MS=100`).
+
+Read it with the **light reader** on your phone: [aidansiegel.github.io/videocap/reader](https://aidansiegel.github.io/videocap/reader/).
+Open it once at home and it keeps working with no network. Point the camera at the light from a hand's width away;
+it finds the blinking light by itself (or tap it), and shows the message and what it means. Phones only allow the
+camera on https pages, which is why it lives there and not on the station.
+
+**Its status over Bluetooth:** the station also broadcasts its status as its Bluetooth name, a line every 6 seconds:
+`V0 REC 23M B004V001 85G`, `V1 NOW FRENCH TV ON MUSIC BEAT`, `V2 TIME 23M FREE 85G`, `V3 CODES NONE`,
+`V4 IP 10.0.0.5:8091`... V0 is always the gist (8 characters of what it's doing, then the detail that matters most);
+the rest repeat within a minute. No pairing, network or button: any phone's Bluetooth scanner app (nRF Connect,
+LightBlue) shows it from about 10 m away, and on a computer `python3 -m videocap.btreader` collects a whole round and
+prints the report (it needs `pip install bleak`; on a Mac, run it in Terminal, which asks for Bluetooth permission).
+It's a broadcast only: nothing can connect to the station this way. `BLUETOOTH=none` turns it off.
+
+**Codes**, the same on the light, over Bluetooth and on the page:
+
+| Code | Meaning |
+| --- | --- |
+| E01 | A disk couldn't be read |
+| E02 | Disk full |
+| E03 | No room for a master |
+| E04 | The recording couldn't start |
+| E05 | A recording stopped on an error |
+| E06 | Disk unplugged while recording |
+| E07 | Not safe to unplug yet: a disk is in use |
+| E08 | Power supply too weak |
+| E09 | Masters disk nearly full |
+| E10 | An upload or move failed |
+
+**Reading the light with a computer's camera:** `python3 -m videocap.reader` (on a Mac, run it in Terminal, which
+asks for camera permission). Point the camera at the station and press its button twice or three times.
+
+**Shutting down:** hold the power button 3 seconds. It finishes any recording, then powers off; unplug the power once
+the red light stays on. `BUTTON=none` leaves the button as the power button.
+
+**What this takes from the Pi:** nothing it needs. Normally the green light flickers when the SD card is busy, and the
+red one shows the Pi is off (or, on some models, a weak power supply). The Pi's boot error codes and its "off" light
+come from its firmware, so videocap can't hide them; a weak supply shows as a warning on the page instead. When
+videocap stops, both lights and the button go back to what they did before.
 
 ## Lessons built in
 

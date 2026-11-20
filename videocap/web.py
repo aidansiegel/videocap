@@ -142,8 +142,16 @@ def handler(app):
             if self.path == "/stop" and app.rec:
                 app.stop_requested = True
             elif self.path == "/start" and not app.rec:
+                if app.eject:  # the disks were made safe to unplug: REC carries on
+                    app.carry_on()
                 app.armed = app.force = True
                 app.standby_until = time.time() + app.f("STANDBY_HOURS") * 3600
+            elif self.path == "/eject":  # what a press of the button does: make the disks safe to unplug
+                if not app.eject:
+                    app.eject = True
+            elif self.path == "/tell":  # what 2 and 3 presses of the button do: status or address, in Morse
+                what = self.body(20)
+                app.tell(app.morse_address() if what == "address" else app.morse_status())
             elif self.path == "/retry":
                 app.queue.retry()
             elif self.path == "/approve":

@@ -6,6 +6,7 @@ import os
 import re
 import shutil
 import subprocess
+import threading
 import time
 
 WRITABLE_FS = ("exfat", "vfat", "ext4", "ntfs")
@@ -83,19 +84,54 @@ def lowprio(cmd):
 
 # --- LEDs -------------------------------------------------------------------
 
-class Led:
-    """A Raspberry Pi's green ACT LED shows the state; the red PWR LED blinks on an error.
+def blinks(n, on=200, gap=350, pause=1600):
+    """n short blinks, then a pause: a code you count."""
+    return [(on, gap)] * (n - 1) + [(on, pause)]
 
-    heartbeat: waiting for the capture device or disk; solid: ready or finished (safe to unplug the disk);
-    slow blink: recording; fast blink: finishing the files; mostly on: uploading; red blinking: something went wrong.
+
+class Led:
+    """A Raspberry Pi's lights say what the station is doing, so it can run without a screen.
+
+    Red is recording (steady) or an error (blinking, counted). Green blinks a count for what's missing, then pauses:
+    1 = the capture device, 2 = the disk, 3 = the picture (everything is plugged in: press play). Fast green flicker:
+    finishing the files, don't unplug anything. Mostly on: uploading. Solid green: done, safe to unplug the disk.
     """
     ACT = "/sys/class/leds/ACT"
     PWR = "/sys/class/leds/PWR"
+    ON, OFF = [(1000, 0)], [(0, 1000)]
+    # pattern: (green, red); each a repeating list of (on ms, off ms)
+    PATTERNS = {
+        "no-device": (blinks(1), OFF),
+        "no-disk": (blinks(2), OFF),
+        "no-picture": (blinks(3), OFF),
+        "recording": (OFF, ON),
+        "finishing": ([(80, 80)], OFF),
+        "uploading": ([(1400, 120)], OFF),
+        "done": (ON, OFF),
+        "shutdown": ([(80, 80)], [(80, 80)]),
+        "error-disk": (OFF, blinks(1)),        # couldn't mount it, or it's full
+        "error-start": (OFF, blinks(2)),       # the recording couldn't start
+        "error-stopped": (OFF, blinks(3)),     # a recording stopped on an error
+        "error": (OFF, [(250, 250)]),
+    }
+    STATES = {"waiting": "no-device", "ready": "no-picture"}  # a state given without a pattern of its own
+    FLASH = [(60, 60)] * 3  # a button press was heard
 
     def __init__(self, mode="auto"):
         self.on = mode != "none" and os.path.isdir(self.ACT)
-        self.orig = {led: self._trigger(led) for led in (self.ACT, self.PWR)} if self.on else {}
+        self.leds = [led for led in (self.ACT, self.PWR) if self.on and os.path.isdir(led)]
+        self.orig = {led: self._trigger(led) for led in self.leds}
         self.cur = None
+        self.seq = {}            # led -> its pattern now
+        self.seq_start = time.time()
+        self.over = {}           # led -> (a one-off sequence, when it started, when it ends)
+        self.wake = threading.Event()
+        self.stopped = False
+        self.lit = {}
+        if self.leds:
+            for led in self.leds:
+                self._w(led + "/trigger", "none")
+            threading.Thread(target=self._play, daemon=True).start()
 
     def _trigger(self, led):
         m = re.search(r"\[([^\]]+)\]", read(led + "/trigger"))
@@ -108,33 +144,90 @@ class Led:
         except OSError:
             pass
 
-    def _set(self, led, mode):
-        if mode in ("slow", "fast", "err", "blip"):
-            on, off = {"slow": (500, 500), "fast": (80, 80), "err": (250, 250), "blip": (1400, 120)}[mode]
-            self._w(led + "/trigger", "timer")
-            self._w(led + "/delay_on", on)
-            self._w(led + "/delay_off", off)
-        elif mode == "off":
-            self._w(led + "/trigger", "none")
-            self._w(led + "/brightness", 0)
-        else:
-            self._w(led + "/trigger", mode)
+    def _light(self, led, lit):
+        if self.lit.get(led) == lit:
+            return
+        self.lit[led] = lit
+        self._w(led + "/brightness", (read(led + "/max_brightness").strip() or "1") if lit else 0)
 
     def set(self, pattern):
-        if not self.on or pattern == self.cur:
+        pattern = self.STATES.get(pattern, pattern)
+        if pattern not in self.PATTERNS:
+            pattern = "done"
+        if pattern == self.cur:
             return
         self.cur = pattern
-        if pattern == "error":
-            self._set(self.ACT, "off")
-            self._set(self.PWR, "err")
-            return
-        self._set(self.PWR, self.orig[self.PWR])
-        self._set(self.ACT, {"waiting": "heartbeat", "ready": "default-on", "recording": "slow",
-                             "finishing": "fast", "uploading": "blip"}.get(pattern, "default-on"))
+        green, red = self.PATTERNS[pattern]
+        self.seq = {self.ACT: green, self.PWR: red}
+        self.seq_start = time.time()
+        self.wake.set()
+
+    def overlay(self, seqs):
+        """Play a one-off sequence on some lights ({led: [(on ms, off ms), ...]}) over the pattern, then go back."""
+        now = time.time()
+        for led, seq in seqs.items():
+            self.over[led] = (seq, now, now + sum(a + b for a, b in seq) / 1000)
+        self.lit = {}
+        self.wake.set()
+
+    def flash(self):
+        """Both lights flicker for a moment: the button was heard."""
+        self.overlay({led: self.FLASH for led in (self.ACT, self.PWR)})
+
+    def morse(self, seq):
+        """Send a message (morse.timings) on the green light; red keeps saying whether it's recording. Seconds it
+        takes."""
+        self.overlay({self.ACT: seq})
+        return sum(a + b for a, b in seq) / 1000
+
+    @staticmethod
+    def _at(seq, k):
+        """Lit or not at k ms into one round of a pattern, and how long until that changes."""
+        t = 0
+        for on, off in seq:
+            if k < t + on:
+                return True, t + on - k
+            if k < t + on + off:
+                return False, t + on + off - k
+            t += on + off
+        return False, 1000
+
+    def _play(self):
+        """Steps each light through its pattern (or a one-off sequence laid over it), waking for each change."""
+        while not self.stopped:
+            self.wake.clear()
+            now = time.time()
+            wait = 1000.0
+            for led in self.leds:
+                ov = self.over.get(led)
+                if ov and now >= ov[2]:
+                    self.over.pop(led, None)
+                    self.lit.pop(led, None)
+                    ov = None
+                if ov:
+                    lit, left = self._at(ov[0], (now - ov[1]) * 1000)
+                    left = min(left, (ov[2] - now) * 1000)
+                else:
+                    seq = self.seq.get(led, self.OFF)
+                    length = sum(a + b for a, b in seq) or 1000
+                    lit, left = self._at(seq, ((now - self.seq_start) * 1000) % length)
+                self._light(led, lit)
+                wait = min(wait, left)
+            self.wake.wait(max(0.005, wait / 1000))
 
     def restore(self):
+        self.stopped = True
+        self.wake.set()
         for led, trig in self.orig.items():
-            self._set(led, trig)
+            self._w(led + "/trigger", trig)
+
+
+def undervoltage():
+    """True while a Raspberry Pi reports its supply voltage too low (the kernel's rpi_volt alarm)."""
+    for d in glob.glob("/sys/class/hwmon/hwmon*"):
+        if read(d + "/name").strip() == "rpi_volt":
+            return read(d + "/in0_lcrit_alarm").strip() == "1"
+    return False
 
 
 # --- capture device ---------------------------------------------------------
@@ -239,6 +332,42 @@ def usb_partitions():
             for p in (d.get("children") or [d]) if p.get("fstype") in WRITABLE_FS]
 
 
+SYSTEM_MOUNTS = ("/", "/boot", "/boot/firmware", "/usr", "/var", "/home")
+
+
+def usb_mounts():
+    """Everything mounted from USB disks, as (mount point, name) pairs, whoever mounted it (a capture disk, or a
+    disk the system mounts, like a masters disk). A disk the system runs from is left out: it can't be unplugged."""
+    try:
+        data = json.loads(sh("lsblk", "-J", "-o", "NAME,PATH,TRAN,LABEL,MOUNTPOINTS"))
+    except ValueError:
+        return []
+    out = []
+    for d in data.get("blockdevices", []):
+        if d.get("tran") != "usb":
+            continue
+        parts = d.get("children") or [d]
+        points = [(m, p.get("label") or p.get("path")) for p in parts for m in (p.get("mountpoints") or []) if m]
+        if any(m in SYSTEM_MOUNTS for m, _ in points):
+            continue
+        out += [(m, name) for m, name in points if m != "[SWAP]"]
+    return out
+
+
+def umount_now(where):
+    """Unmount for real, or say what's holding it: never the lazy kind, which only hides a mount that may still be
+    writing. None when it's unmounted, else the reason."""
+    os.sync()
+    for _ in range(3):
+        r = subprocess.run(["umount", where], capture_output=True, text=True, errors="replace")
+        if r.returncode == 0 or not os.path.ismount(where):
+            return None
+        time.sleep(1)
+    who = sh("fuser", "-m", where).split()
+    names = sorted({read("/proc/%s/comm" % pid.rstrip("cefFrm")) for pid in who} - {""})
+    return "in use by %s" % ", ".join(names) if names else (r.stderr.strip() or "busy")
+
+
 def find_card(label, mount_point):
     """The largest writable USB filesystem not in use elsewhere (only ones labeled `label`, if set)."""
     best = None
@@ -252,8 +381,33 @@ def find_card(label, mount_point):
     return best
 
 
-def mount(card, where, owner=""):
-    """Mount a partition at `where`; True if it's mounted there now. Never leaves another disk mounted there."""
+REPAIR = {"exfat": ["fsck.exfat", "-p"], "vfat": ["fsck.vfat", "-a"]}
+
+
+def repair(card):
+    """Check a FAT or exFAT disk, and fix what's safe to fix by itself, before it's mounted: one pulled out without
+    being unmounted can be left half-written, and writing more to it can make that worse. True unless it's beyond
+    an automatic fix. (ext4, btrfs and NTFS keep journals and look after themselves.)"""
+    cmd = REPAIR.get(card.get("fstype"))
+    if not cmd or not shutil.which(cmd[0]):
+        return True
+    r = subprocess.run(cmd + [card["path"]], stdin=subprocess.DEVNULL, capture_output=True, text=True,
+                       errors="replace", timeout=900)
+    what = (r.stdout + r.stderr).strip().splitlines()
+    if r.returncode == 0:
+        return True
+    if r.returncode == 1:  # fixed
+        log("repaired %s %s (it was pulled out without being unmounted?): %s"
+            % (card["path"], card.get("label") or "", what[-1] if what else ""))
+        return True
+    log("%s %s needs repair on a computer (fsck exit %d): %s"
+        % (card["path"], card.get("label") or "", r.returncode, " / ".join(what[-3:])))
+    return False
+
+
+def mount(card, where, owner="", check=False):
+    """Mount a partition at `where`; True if it's mounted there now. Never leaves another disk mounted there.
+    check: look it over first (see repair), for a disk just plugged in."""
     if os.path.ismount(where):
         src = sh("findmnt", "-no", "SOURCE", where).strip()
         if src == card["path"]:
@@ -262,6 +416,8 @@ def mount(card, where, owner=""):
         umount(where)
     os.makedirs(where, exist_ok=True)
     fs = card["fstype"]
+    if check and not repair(card):
+        return False
     opts = "noatime"
     if fs in ("vfat", "exfat", "ntfs") and owner:
         uid, _, gid = owner.partition(":")

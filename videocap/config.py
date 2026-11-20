@@ -18,6 +18,9 @@ DEFAULTS = {
     "WEB_PORT": "80",
     "NETWORK_NAME": "videocap",    # hostname announced for the page: http://videocap.local/ (-2 if taken); blank = none
     "LEDS": "auto",                # auto = use a Raspberry Pi's ACT/PWR LEDs if there are any; none = leave them alone
+    "MORSE_UNIT_MS": "100",        # one Morse dot on the light, in ms (100 = 12 words a minute; a phone camera reads it)
+    "BLUETOOTH": "auto",           # auto = broadcast the status as the Bluetooth name (V0..V9, a line every 6 s); none = off
+    "BUTTON": "auto",              # auto = a Pi 5's power button makes the disks safe to unplug, held 3 s shuts down
     "PAUSE_UNITS": "",             # systemd units frozen while recording (other heavy jobs on the same machine)
 
     # --- the capture device (a profile sets most of these for a known stick; see profiles/)

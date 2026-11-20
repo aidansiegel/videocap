@@ -314,6 +314,27 @@ dialog .btns .lbtn:first-child{margin-right:auto}
 #helpdlg ul{margin:0;padding-left:18px;font-size:13px;line-height:1.5;color:var(--mut)} #helpdlg li{margin:9px 0}
 #helpdlg b{color:var(--text)}
 #helpdlg .x{position:sticky;top:0;float:right;margin:-4px -4px 0 8px}
+/* the lights and the button: each light acts out its pattern; the one the station shows now is marked */
+#helpdlg h4{margin:16px 0 4px;font-size:14px}
+#helpdlg .lnote{font-size:13px;color:var(--mut);line-height:1.5;margin:0 0 8px}
+.lights{width:100%;border-collapse:collapse;font-size:13px}
+.lights td{padding:6px 6px;border-top:1px solid var(--rule);vertical-align:middle;color:var(--mut)}
+.lights td:first-child{width:28px;padding-left:4px} .lights td b{color:var(--text);font-weight:600}
+.lights td span.what{display:block}
+.lights tr.cur td{background:rgba(98,245,210,.08);color:var(--text)}
+.lights tr.cur td:last-child b::after{content:"  \2190 now";color:var(--vfd);font-weight:700;white-space:nowrap}
+.ld{display:inline-block;width:14px;height:14px;border-radius:50%;background:#2b2e33;box-shadow:inset 0 0 0 1px #000}
+.ld.g{--c:#3dff7a} .ld.r{--c:#ff3b30}
+.ld.on{background:var(--c);box-shadow:0 0 8px var(--c)}
+.ld.b1,.ld.b2,.ld.b3,.ld.fast,.ld.mostly{animation:1.8s step-end infinite b1}
+.ld.b2{animation-name:b2;animation-duration:2.35s} .ld.b3{animation-name:b3;animation-duration:2.9s}
+.ld.fast{animation-name:fast;animation-duration:.16s} .ld.mostly{animation-name:mostly;animation-duration:1.52s}
+@keyframes b1{0%{background:var(--c)}11.1%{background:#2b2e33}}
+@keyframes b2{0%{background:var(--c)}8.5%{background:#2b2e33}23.4%{background:var(--c)}31.9%{background:#2b2e33}}
+@keyframes b3{0%{background:var(--c)}6.9%{background:#2b2e33}19%{background:var(--c)}25.9%{background:#2b2e33}37.9%{background:var(--c)}44.8%{background:#2b2e33}}
+@keyframes fast{0%{background:var(--c)}50%{background:#2b2e33}}
+@keyframes mostly{0%{background:var(--c)}92.1%{background:#2b2e33}}
+@media (prefers-reduced-motion:reduce){.ld{animation:none!important}.ld.b1,.ld.b2,.ld.b3,.ld.fast,.ld.mostly{background:var(--c)}}
 .last{font-size:13px;color:var(--faint);margin:14px 2px 0;overflow-wrap:anywhere}
 .last:empty{display:none}
 .lost{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);background:var(--rec);color:#fff;padding:10px 16px;border-radius:999px;
@@ -437,7 +458,18 @@ nothing is deleted.</li>
 another capture disk, then press <b>REC</b>.</li>
 <li><b>Nothing happens with the source on:</b> check the picture cable, that it's playing (a camcorder in playback
 mode) and the input setting, then turn it off and on.</li>
-</ul></dialog>
+</ul>
+<h4 id="lightstitle">Lights and button: no screen needed</h4>
+<p class="lnote">On a Raspberry Pi the two lights by the power socket say what's going on. Count the blinks.
+<b>Unplugging a disk:</b> safe at 1 or 2 green blinks or steady green. Otherwise, on a Pi 5 <b>press the power button</b>:
+it stops any recording, finishes the files and closes the disks, then the light goes steady green. Swap the disks; it
+carries on by itself (or press again). <b>Press twice</b> and the green light spells out the status in Morse; <b>three
+times</b>, its network address. Read it with the <a href="https://aidansiegel.github.io/videocap/reader/" target="_blank" rel="noopener">light
+reader</a> on your phone (open it once at home and it works offline). <b>Hold the button 3 seconds</b> to shut down;
+unplug the power once the red light stays on.</p>
+<table class="lights" aria-labelledby="lightstitle"><tbody id="lightrows"></tbody></table>
+<div class="btns"><button class="lbtn" id="lightprint">Print a card</button></div>
+</dialog>
 </div>
 <dialog id="listdlg">
  <h3>Item list</h3>
@@ -627,6 +659,40 @@ $('setupdone').onclick=async()=>{if(!S.setup_done)await fetch('/setup-done',{met
 $('setupdlg').addEventListener('close',()=>{$('setupbtn').focus();refresh()});
 // help, as an overlay; Esc or a click outside closes it
 $('helpbtn').onclick=()=>$('helpdlg').showModal();
+// the lights: [code from the station, light, how it acts, what it means]. hardware.Led's PATTERNS, in words
+const LIGHTS=[
+ ['recording','r on','Red, steady','Recording'],
+ ['no-picture','g b3','Green, 3 blinks, pause','Ready: everything is plugged in. Press play (it records from the first frame)'],
+ ['no-disk','g b2','Green, 2 blinks, pause','Connect the capture disk'],
+ ['no-device','g b1','Green, 1 blink, pause','Plug in the capture device'],
+ ['finishing','g fast','Green, fast flicker','Finishing the files: don\u2019t unplug anything'],
+ ['uploading','g mostly','Green, on with a short blink off','Moving or uploading: leave the disk connected'],
+ ['done','g on','Green, steady','Finished, or made safe with the button: safe to unplug the disks'],
+ ['error-disk','r b1','Red, 1 blink, pause','Disk problem: it\u2019s full, or it couldn\u2019t be read'],
+ ['error-start','r b2','Red, 2 blinks, pause','The recording couldn\u2019t start: check the capture device'],
+ ['error-stopped','r b3','Red, 3 blinks, pause','A recording stopped on an error: see this page when you can'],
+ ['shutdown','r fast','Both, fast flicker','Shutting down: wait for the red light to stay on'],
+ ['morse','g mostly','Green, a long flash then Morse','Its status (2 presses) or address (3): read it with the light reader'],
+];
+$('lightrows').innerHTML=LIGHTS.map(([k,c,how,what])=>'<tr data-light="'+k+'"><td><span class="ld '+c+'" aria-hidden="true"></span></td><td><b>'+how+'</b><span class="what">'+what+'</span></td></tr>').join('');
+function showLight(code){document.querySelectorAll('#lightrows tr').forEach(r=>{const now=r.dataset.light==code;r.classList.toggle('cur',now);
+ if(now)r.setAttribute('aria-current','true');else r.removeAttribute('aria-current');});}
+$('lightprint').onclick=()=>{
+ // a card to keep with the station: black on white, Letter, the blinks drawn as dots so it reads in grayscale
+ const dots=c=>{const m={b1:1,b2:2,b3:3}[c.split(' ')[1]],dot='\u25cf';
+  return m?(dot+' ').repeat(m)+'<span class="pause">pause</span>':c.includes('on')?'<span class="steady">'+dot+' steady</span>':c.includes('fast')?'\u25cf\u25cf\u25cf\u25cf flicker':'\u25cf\u2014\u2014\u2014 short off';};
+ const rows=LIGHTS.map(([k,c,how,what])=>'<tr><td class="col">'+(c[0]=='r'?'RED':'GREEN')+'</td><td class="pat">'+dots(c)+'</td><td>'+what+'</td></tr>').join('');
+ const w=window.open('','videocap-lights');if(!w)return;
+ w.document.write('<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Videocap lights</title><style>'+
+  '@page{size:letter;margin:0.6in}body{font:13pt/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;color:#000;background:#fff;margin:0}'+
+  'h1{font-size:20pt;margin:0 0 4pt}p{margin:0 0 10pt}table{border-collapse:collapse;width:100%}td{border-top:1px solid #000;padding:6pt 6pt;vertical-align:top}'+
+  '.col{font-weight:700;width:60pt}.pat{width:140pt;font-size:14pt;letter-spacing:2pt;white-space:nowrap}.pause,.steady{font-size:10pt;letter-spacing:0}'+
+  '.btn{border:2px solid #000;padding:8pt 10pt;margin:14pt 0 0;border-radius:6pt}.foot{margin-top:12pt;font-size:10pt}</style></head><body>'+
+  '<h1>Videocap: what the lights mean</h1><p>The two lights next to the Pi\u2019s power socket. Count the blinks.</p><table>'+rows+'</table>'+
+  '<div class="btn"><b>Swapping disks:</b> safe at 1 or 2 green blinks or steady green. Otherwise press the power button (Pi 5) once and wait for '+
+  'steady green, then swap; it carries on by itself. <b>Status:</b> press twice and the green light spells it in Morse (three times: the address); '+
+  'read it with the phone light reader, https://aidansiegel.github.io/videocap/reader/. <b>Shutting down:</b> hold the button 3 seconds; unplug the power once the red light stays on.</div><p class="foot">Page: http://'+location.host+'/</p></body></html>');
+ w.document.close();w.focus();w.print();};
 $('helpclose').onclick=()=>$('helpdlg').close();
 $('helpdlg').onclick=e=>{const r=$('helpdlg').getBoundingClientRect();
  if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)$('helpdlg').close()};
@@ -783,7 +849,7 @@ $('tapes').onclick=e=>{const b=e.target.closest('button[data-a]');
 
 async function refresh(){
  if(fetching)return;fetching=true;lastFetch=Date.now();
- try{const d=await (await fetch('/status.json',{cache:'no-store'})).json();D=d;$('lost').style.display='none';
+ try{const d=await (await fetch('/status.json',{cache:'no-store'})).json();D=d;showLight(d.light);$('lost').style.display='none';
   document.title=(d.recording?'● ':'')+'videocap';
   clockSkew=d.now*1000-Date.now(); clockTz=d.tz||'';
   $('clk-tzname').textContent=(d.tz||'').replace(/_/g,' ')+(d.tz_abbr?' ('+d.tz_abbr+')':'');$('clk-tzabbr').textContent=d.tz_abbr||d.tz||'';

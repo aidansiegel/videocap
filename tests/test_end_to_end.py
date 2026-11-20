@@ -171,6 +171,23 @@ class EndToEnd(unittest.TestCase):
         with self.assertRaises(urllib.error.HTTPError):
             self.post("discard", name.encode())
 
+    def test_made_safe_to_unplug_mid_take(self):
+        """The button (POST /eject) during a take: the take is finished and kept, nothing is mounted or moving, the
+        light says safe; REC carries on."""
+        self.wait_for("recording with a moving picture", lambda s: s["recording"] and s["recording"]["motion_seen"]
+                      and s["recording"]["elapsed"] >= 6)
+        self.assertEqual(self.post("eject"), 204)
+        s = self.wait_for("safe to unplug", lambda s: s["light"] == "done" and "Safe to unplug" in s["message"])
+        self.assertIsNone(s["recording"])
+        held = s["uploads"][0]
+        self.assertTrue(any(i["kind"] == "master" and i["state"] == "held" for i in held["items"]))  # kept, for review
+        time.sleep(4)  # it stays safe: nothing starts again by itself
+        s = self.status()
+        self.assertEqual((s["light"], s["recording"]), ("done", None))
+        self.assertTrue(os.path.exists(os.path.join(self.card, "captures", held["name"] + "_master.mkv")))
+        self.assertEqual(self.post("start"), 204)  # REC carries on
+        self.wait_for("recording again", lambda s: s["recording"] and s["light"] == "recording")
+
 
 if __name__ == "__main__":
     unittest.main()

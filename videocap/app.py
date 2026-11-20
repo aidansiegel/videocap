@@ -18,7 +18,7 @@ import threading
 import time
 from datetime import datetime
 
-from . import collection, config, hardware, live, mdns, settings
+from . import beacon, button, collection, config, hardware, live, mdns, morse, settings
 from .hardware import log
 from .queue import Queue
 from .recording import Recording
@@ -47,6 +47,13 @@ class App:
         self.armed = True            # a new picture or disk starts a recording
         self.force = False           # Start pressed
         self.stop_requested = False
+        self.stop_reason = "stopped from the web page"
+        self.shutdown_requested = False  # the button was held: finish, then power off
+        self.eject = None            # True: make the disks safe to unplug; then the disks plugged in at that moment
+        self.checked = set()         # disks looked over (hardware.repair) since they were plugged in
+        self.button = None
+        self.beacon = None
+        self.telling = None          # (the Morse message on the light now, when it ends)
         self.last_card_id = None
         self.last_signal = False
         self.signal = None
@@ -260,9 +267,12 @@ class App:
         return bool(card_id) and (card_id == self.upload_card or card_id in self.other_cards)
 
     def mount(self, card, where=MOUNT):
-        if self.conf["TEST_CARD_DIR"]:
-            return True
-        return hardware.mount(card, where, self.conf["DISK_OWNER"])
+        if self.conf["TEST_CARD_DIR"] or self.eject:
+            return bool(self.conf["TEST_CARD_DIR"])
+        cid = card.get("uuid") or card.get("path")
+        ok = hardware.mount(card, where, self.conf["DISK_OWNER"], check=cid not in self.checked)
+        self.checked.add(cid)
+        return ok
 
     def open_card(self, card_id):
         """Make a disk's files reachable now, if that disk is plugged in."""
@@ -331,7 +341,7 @@ class App:
     def start(self, dev, card, audio, standby=False):
         if not self.mount(card):
             self.armed = False
-            return self.set_state("error", "Couldn't mount the disk (%s)" % card.get("fstype"), "error")
+            return self.set_state("error", "Couldn't mount the disk (%s)" % card.get("fstype"), "error-disk")
         folder = os.path.join(self.card_dir(), self.conf["FOLDER"])
         os.makedirs(folder, exist_ok=True)
         item = self.capture_item()
@@ -351,14 +361,14 @@ class App:
         if free < self.f("MIN_FREE_GB") + 1:
             self.unmount()
             self.armed = False
-            return self.set_state("error", "Disk is full (%.1f GB free)" % free, "error")
+            return self.set_state("error", "Disk is full (%.1f GB free)" % free, "error-disk")
         # the last take's master moving off the disk frees its room within minutes, so it counts as free
         if mode != "access" and free + self.queue.freeing(self.last_card_id) / 1e9 < self.f("MASTER_MIN_FREE_GB"):
             if self.conf["NO_ROOM"] != "mp4":
                 self.armed = False
                 return self.set_state("error", "Not recording: only %.0f GB free on %s, and a master needs %.0f GB. "
                                       "Make room, then press Start or turn the source off and on."
-                                      % (free, card.get("label") or "the disk", self.f("MASTER_MIN_FREE_GB")), "error")
+                                      % (free, card.get("label") or "the disk", self.f("MASTER_MIN_FREE_GB")), "error-disk")
             mode, note = "access", " (only %.0f GB free, so MP4 only, no lossless master)" % free
         self.armed = self.force = self.stop_requested = False
         self.pause_others(True)
@@ -371,7 +381,7 @@ class App:
         except OSError as e:
             self.pause_others(False)
             self.unmount()
-            return self.set_state("error", "Couldn't start recording: %s" % e, "error")
+            return self.set_state("error", "Couldn't start recording: %s" % e, "error-start")
         self.rec.item = item
         self.rec.dest = self.dest_conf()  # where this capture goes, whatever is picked later
         self.lost_since = None
@@ -379,7 +389,7 @@ class App:
         if standby:
             self.rec.standby = True
             self.set_state("ready", "Ready: standing by, so recording begins with the first frame when you "
-                           "press play", "ready")
+                           "press play", "no-picture")
         else:
             self.set_state("recording", "Recording %s" % self.rec.label)
 
@@ -437,7 +447,7 @@ class App:
         rec, self.rec = self.rec, None
         rec.stop(reason)
         self.rename_take(rec)
-        by_hand = reason == "stopped from the web page"
+        by_hand = reason in ("stopped from the web page", "stopped with the button")
         # a take of a few seconds (the picture dropped out just after play, and it was started again) is a
         # false start, as is a picture that never moved (Stop before play, the wrong input)
         short = rec.motion_seen and not error and not by_hand and rec.duration() < self.f("MIN_TAKE_MINUTES") * 60
@@ -489,10 +499,10 @@ class App:
             self.hook("finished", {"name": os.path.basename(rec.base), "entry": rec.item, "card": self.last_card_id,
                                    "base": rec.base, "damage": rec.damage.summary(), "held": held, "error": error})
         if error:
-            self.set_state("error", "%s stopped: %s" % (name, reason), "error")
+            self.set_state("error", "%s stopped: %s" % (name, reason), "error-stopped")
         else:
             self.set_state("done", "%s finished (%s).%s" % (name, reason, "" if uploading else
-                                                             " Safe to unplug the disk."), "ready")
+                                                             " Safe to unplug the disk."), "done")
 
     def hook(self, event, job):
         """Run HOOK with the event (finished, approved, discarded) and the take's files in the environment, at the
@@ -528,14 +538,236 @@ class App:
     # --- the loop ---------------------------------------------------------------------
 
     def idle(self, state, message, led=None):
-        """Set an idle state, unless uploads are what's really going on."""
-        if self.upload_card:
+        """Set an idle state, unless uploads are what's really going on (on this disk, or one plugged in before it:
+        the light must never say a disk is free to pull while it's in use)."""
+        if self.upload_card or self.other_cards:
             self.set_state("uploading", "Uploading%s. Leave the disk connected."
                            % (": " + self.queue.progress if self.queue.progress else ""), "uploading")
         else:
             self.set_state(state, message, led)
 
+    # --- the button -------------------------------------------------------------------
+
+    def press(self):
+        """The button, pressed: stop everything and make the disks safe to unplug (the light goes steady green).
+        Pressed again, carry on: stand by, record when play is pressed, move and upload."""
+        self.led.flash()
+        if self.eject:
+            log("button: carry on")
+            self.carry_on()
+        else:
+            log("button: make the disks safe to unplug")
+            self.eject = True
+
+    def carry_on(self):
+        self.eject = None
+        self.queue.resume()
+        self.armed = True
+        self.standby_until = time.time() + self.f("STANDBY_HOURS") * 3600
+
+    def plugged(self):
+        """Which USB disks are plugged in, to notice one going in or coming out."""
+        return frozenset(p.get("uuid") or p.get("path") for p in hardware.usb_partitions())
+
+    def tick_eject(self):
+        """Stop what uses the disks, then unmount them all, then say it's safe. A disk going in or coming out after
+        that (the swap) carries on by itself, as does a second press."""
+        if self.eject is not True:
+            if self.plugged() != self.eject:
+                log("a disk went in or came out: carrying on")
+                return self.carry_on()
+            if not self.conf["TEST_CARD_DIR"] and hardware.usb_mounts():  # something mounted one again (automount)
+                self.eject = True
+                return
+            return self.set_state("done", "Safe to unplug the disks. Press the button again, or plug in a disk, to "
+                                  "carry on.", "done")
+        self.queue.pause()
+        if self.rec and self.rec.standby:
+            self.standby_until = time.time()
+            self.drop_standby()
+        elif self.rec:
+            self.stop_reason = "stopped with the button"
+            self.finish(self.stop_reason)
+        if self.queue.busy:
+            return self.set_state("finishing", "Making the disks safe to unplug: stopping a copy", "finishing")
+        self.view_until = 0
+        held = []
+        if not self.conf["TEST_CARD_DIR"]:
+            # its own disks, then everything else on a USB disk (a masters disk the system mounts, say): a disk is only
+            # safe to pull once nothing on it is mounted
+            mine = [MOUNT] + list(self.other_cards.values())
+            for where, name in [(w, "the capture disk") for w in mine if os.path.ismount(w)] + hardware.usb_mounts():
+                if os.path.ismount(where):
+                    why = hardware.umount_now(where)
+                    if why:
+                        held.append("%s (%s) is %s" % (name, where, why))
+        self.other_cards, self.upload_card, self.viewed = {}, None, False
+        if held:
+            log("not safe to unplug yet: " + "; ".join(held))
+            return self.set_state("error", "Not safe to unplug yet: %s. Close what's using it; this keeps trying."
+                                  % "; ".join(held), "error-disk")
+        os.sync()
+        self.eject = self.plugged()
+        log("disks unmounted: safe to unplug")
+        self.set_state("done", "Safe to unplug the disks. Press the button again, or plug in a disk, to carry on.",
+                       "done")
+
+    def presses(self, n):
+        """The button, pressed n times in a row: 1 makes the disks safe (or carries on), 2 spells out the status
+        in Morse on the green light, 3 the network address."""
+        if n == 1:
+            return self.press()
+        if n == 2:
+            return self.tell(self.morse_status())
+        if n == 3:
+            return self.tell(self.morse_address())
+        self.led.flash()
+
+    def tell(self, text):
+        text = morse.clean(text)
+        took = self.led.morse(morse.timings(text, max(40, self.f("MORSE_UNIT_MS") or morse.UNIT_MS)))
+        self.telling = (text, time.time() + took)
+        log("light, in Morse (%.0f s): %s" % (took, text))
+        return text
+
+    def morse_status(self):
+        """The status in a few words for the light: what it's doing, then what matters about it."""
+        rec, light = self.rec, self.led.cur
+        if self.eject:
+            words = ["NOT SAFE"] if self.state == "error" else ["BUSY"] if self.eject is True else ["SAFE"]
+        elif rec and not rec.standby:
+            words = ["REC"]
+            if rec.item and rec.item.get("id"):
+                words.append(rec.item["id"])
+            words.append("%dM" % (rec.duration() // 60))
+            with contextlib.suppress(OSError):
+                words.append("FREE %dG" % (shutil.disk_usage(os.path.dirname(rec.base)).free / 1e9))
+        elif self.state == "finishing":
+            words = ["BUSY"]
+        elif self.state == "uploading":
+            m = re.search(r"(\d+)%", self.queue.progress or "")
+            words = ["UPLOADING"] + ([m.group(1), "PCT"] if m else [])
+        elif self.state == "error":
+            codes = self.codes()
+            words = ["ERR"] + codes[:1] + [{"error-disk": "DISK", "error-start": "START",
+                                             "error-stopped": "STOPPED"}.get(light, "")]
+            msg = self.message.lower()
+            words.append("FULL" if "full" in msg else "NO ROOM" if "free" in msg else "")
+        elif not self.dev:
+            words = ["NO DEVICE"]
+        elif not self.card:
+            words = ["NO DISK"]
+        elif self.state == "done":
+            words = ["DONE"]
+        else:
+            words = ["READY"] + ([self.next_item] if self.next_item else [])
+        if hardware.undervoltage():
+            words.append("LOW POWER")
+        return " ".join(w for w in words if w)
+
+    # numbered codes, the same on the light, over Bluetooth, on the page and on the printed card (docs/guide.md)
+    CODES = {"E01": "disk couldn't be read", "E02": "disk full", "E03": "no room for a master",
+             "E04": "recording couldn't start", "E05": "a recording stopped on an error",
+             "E06": "disk unplugged while recording", "E07": "not safe to unplug yet: a disk is in use",
+             "E08": "power supply too weak", "E09": "masters disk nearly full", "E10": "an upload or move failed"}
+
+    def codes(self):
+        """The codes that apply right now: the error first, then warnings."""
+        out, msg = [], self.message
+        if self.state == "error":
+            out.append("E07" if msg.startswith("Not safe to unplug") else "E01" if "mount" in msg else
+                       "E03" if msg.startswith("Not recording: only") else "E02" if "full" in msg else
+                       "E04" if msg.startswith("Couldn't start") else "E06" if "unplugged while recording" in msg
+                       else "E05")
+        if hardware.undervoltage():
+            out.append("E08")
+        if any(w.startswith("Masters disk nearly full") for w in self.warnings(self.masters_free())):
+            out.append("E09")
+        if any(i["state"] in ("failed", "missing") for j in self.queue.jobs for i in j["items"]):
+            out.append("E10")
+        return out
+
+    def status_lines(self):
+        """The status in short lines (up to 26 characters) for the Bluetooth name, which cycles through them.
+        Line 0 is the gist: 8 characters of what it's doing, then the detail that matters most."""
+        rec, codes = self.rec, self.codes()
+        recording = rec and not rec.standby
+        item = rec.item if rec and rec.item else self.item(self.next_item)
+        iid = (item or {}).get("id", "").replace("_", "")
+        free = None
+        if recording:
+            with contextlib.suppress(OSError):
+                free = shutil.disk_usage(os.path.dirname(rec.base)).free / 1e9
+        if recording:
+            head, tail = "REC %dM" % (rec.duration() // 60), "%s %s" % (iid, "%dG" % free if free is not None else "")
+        elif self.eject:
+            head, tail = ("NOT SAFE", codes[0] if codes else "") if self.state == "error" else \
+                         ("BUSY", "MAKING SAFE") if self.eject is True else ("SAFE", "UNPLUG OK")
+        elif self.state == "error":
+            head, tail = "ERR " + (codes[0] if codes else ""), self.CODES.get(codes[0], "") if codes else ""
+        elif self.state == "finishing":
+            head, tail = "BUSY", "FINISHING FILES"
+        elif self.state == "uploading":
+            m = re.search(r"(\d+)%", self.queue.progress or "")
+            head, tail = "UPL" + (" %s%%" % m.group(1) if m else ""), ""
+        elif not self.dev:
+            head, tail = "NO DEV", "PLUG IN CAPTURE"
+        elif not self.card:
+            head, tail = "NO DISK", ("WANT " + self.conf["CARD_LABEL"]) if self.conf["CARD_LABEL"] else ""
+        elif self.state == "done":
+            head, tail = "DONE", "UNPLUG OK"
+        else:
+            head, tail = "READY", ("NEXT " + iid) if iid else "PRESS PLAY"
+        lines = [("%-8s %s" % (head, tail)).strip()]
+        if item and item.get("title"):
+            lines.append(("NOW " if recording else "NEXT ") + item["title"])
+        if recording and free is not None:
+            lines.append("TIME %dM FREE %dG" % (rec.duration() // 60, free))
+        mfree = self.masters_free()
+        if mfree is not None:
+            lines.append("MASTERS %dG FREE" % mfree)
+        if self.queue.progress:
+            lines.append("UPL " + self.queue.progress)
+        if self.last_result:
+            lines.append("LAST " + self.last_result)
+        lines.append("CODES " + (" ".join(codes) if codes else "NONE"))
+        ips = [a for a in hardware.sh("hostname", "-I").split() if ":" not in a and not a.startswith("127.")]
+        port = self.conf["WEB_PORT"]
+        for a in ips[:2]:
+            lines.append("IP %s%s" % (a, "" if port == "80" else ":" + port))
+        from . import __version__
+        lines.append("%s %s" % (self.station(), __version__))
+        lines.append(datetime.now().strftime("CLOCK %-I:%M %p ") + self.time_zone()[1])
+        return [" ".join(re.sub(r"[^ -~]", "", l).upper().split())[:26] for l in lines[:10]]
+
+    def morse_address(self):
+        """This station's IPv4 addresses, for finding its page on a network you don't know."""
+        out = hardware.sh("hostname", "-I").split()
+        ips = [a for a in out if ":" not in a and not a.startswith("127.")]
+        port = self.conf["WEB_PORT"]
+        return ("IP " + " ".join(ips) + ("" if port == "80" else " PORT " + port)) if ips else "NO NETWORK"
+
+    def hold(self):
+        """The button, held: finish any recording, then power off."""
+        log("button held: shutting down")
+        self.shutdown_requested = True
+        self.led.set("shutdown")
+
+    def shut_down(self):
+        if self.rec and self.rec.standby:
+            self.drop_standby()
+        elif self.rec:
+            self.finish("stopped with the button to shut down")
+        self.unmount()
+        self.set_state("finishing", "Shutting down. When the red light stays on, it's safe to unplug the power.",
+                       "shutdown")
+        self.quit = True
+        os.sync()
+        subprocess.Popen(["systemctl", "poweroff"])
+
     def tick(self):
+        if self.shutdown_requested:
+            return self.shut_down()
         if not self.rec or self.rec.standby:
             self.conf = config.load(self.conf_path)
         dev_info = hardware.find_video(self.conf)
@@ -550,6 +782,10 @@ class App:
             if card_id:
                 log("disk connected: %s %s" % (card.get("path"), card.get("label") or ""))
                 self.armed = True
+        plugged = self.plugged() if not self.conf["TEST_CARD_DIR"] else frozenset()
+        self.checked &= plugged  # one pulled out and plugged in again is looked over again
+        if self.eject:
+            return self.tick_eject()
 
         # the queue keeps the disk mounted, and carries on while the next take records
         was_uploading = self.upload_card is not None
@@ -572,14 +808,15 @@ class App:
         if was_uploading and not uploading:
             self.unmount()
             if card:
-                self.set_state("done", "Uploads finished. Safe to unplug the disk.", "ready")
+                self.set_state("done", "Uploads finished. Safe to unplug the disk.", "done")
         if not dev:
             if card and self.state == "done" and not self.upload_card:
                 return  # source unplugged after a take: keep "safe to unplug" showing
-            return self.idle("waiting", "Plug in the capture device")
+            return self.idle("waiting", "Plug in the capture device", "no-device")
         if not card:
             want = self.conf["CARD_LABEL"]
-            return self.idle("waiting", "Connect the capture disk" + (" (partition named %s)" % want if want else ""))
+            return self.idle("waiting", "Connect the capture disk" + (" (partition named %s)" % want if want else ""),
+                             "no-disk")
         sig = self.check_signal(dev)
         self.signal = sig
         if sig is True and self.last_signal is False:
@@ -598,7 +835,7 @@ class App:
         if not self.armed and not self.force:
             if self.upload_card or self.state not in ("done", "error"):  # keep the result on screen
                 self.idle("done", "Ready. Turn the source off and on, reconnect the disk, or press Start to record "
-                          "again", "ready")
+                          "again", "done")
             return
         self.start(dev, card, self.audio)
 
@@ -626,6 +863,8 @@ class App:
             self.standby_retry = max(self.standby_retry, time.time() + 300 if self.state == "error" else 0)
         if not self.rec:
             self.pause_others(False)
+            if not self.upload_card:
+                self.unmount()  # nothing uses the disk now: it's safe to pull
             self.idle("ready", "Disk and capture device ready. Waiting for a picture")
 
     def tick_standby(self, dev, card):
@@ -672,7 +911,7 @@ class App:
             return self.finish("capture stopped unexpectedly (ffmpeg exit %s); see the .log on the disk"
                                % rec.proc.returncode, error=True)
         if self.stop_requested:
-            return self.finish("stopped from the web page")
+            return self.finish(self.stop_reason)
         if not card:
             return self.finish("disk unplugged while recording", error=True)
         if dev != "test":
@@ -736,13 +975,17 @@ class App:
         return "press_start"
 
     def warnings(self, masters_free):
-        """Things to act on soon, whatever the step: running out of room for masters."""
+        """Things to act on soon, whatever the step: a weak power supply, running out of room for masters."""
+        out = []
+        if hardware.undervoltage():  # the red light would have shown it, but it's videocap's now
+            out.append("The power supply is too weak: the Pi has dropped below its voltage. Use the official supply; "
+                       "a weak one can drop frames or stop a recording.")
         need = self.f("MASTER_MIN_FREE_GB")
         if masters_free is None or need <= 0 or masters_free >= 2 * need:
-            return []
+            return out
         n = int(max(masters_free - self.queue.spare() / 1e9, 0) // need)
         room = "one more master" if n == 1 else "%d more masters" % n if n else "no more masters"
-        return ["Masters disk nearly full: room for %s." % room]
+        return out + ["Masters disk nearly full: room for %s." % room]
 
     def advice(self, masters_free):
         """What to do now, in a sentence or three, for whoever is at the deck."""
@@ -868,6 +1111,9 @@ class App:
         tz, tz_abbr = self.time_zone()
         d = {"station": self.station(), "address": self.address(), "live": self.live.fresh(), "now": time.time(), "tz": tz, "tz_abbr": tz_abbr, "step": self.step(), "held": self.queue.held(), "warnings": self.warnings(mfree),
              "state": self.state, "message": self.message, "last": self.last_result,
+             "light": "morse" if self.telling and time.time() < self.telling[1] else self.led.cur,
+             "morse": self.telling[0] if self.telling and time.time() < self.telling[1] else None,
+             "codes": self.codes(), "bluetooth": self.beacon.now if self.beacon and self.beacon.on else None,
              "advice": self.advice(mfree), "masters_free_gb": mfree and round(mfree),
              "master_gb": self.f("MASTER_MIN_FREE_GB"), "profile": self.conf["PROFILE"],
              "device": self.dev and "%s (%s)" % (self.dev[2], self.dev[0]),
@@ -906,6 +1152,10 @@ class App:
         from . import __version__
         self.service = mdns.Service(self.station(), self.conf["WEB_PORT"], __version__)
         self.service.start()
+        self.button = button.Button(self.conf["BUTTON"], self.presses, self.hold, log)
+        self.button.start()
+        self.beacon = beacon.Beacon(self.conf["BLUETOOTH"], self.status_lines, log)
+        self.beacon.start()
         log("videocap on %s: profile %s, %d items listed, web page on port %s"
             % (self.station(), self.conf["PROFILE"], len(self.items), self.conf["WEB_PORT"]))
         try:
@@ -923,4 +1173,9 @@ class App:
             self.pause_others(False)
             self.announcer.stop()
             self.service.stop()
-            self.led.restore()
+            if self.button:
+                self.button.stop()
+            if self.beacon:
+                self.beacon.stop()
+            if not self.shutdown_requested:  # shutting down, the lights show it until the power goes
+                self.led.restore()

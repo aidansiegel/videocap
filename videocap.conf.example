@@ -145,8 +145,17 @@ WEB_PORT=80
 PAUSE_UNITS=
 # uid:gid that owns files on exFAT/FAT/NTFS capture disks.
 DISK_OWNER=1000:1000
-# auto = show the state on a Raspberry Pi's LEDs; none = leave them alone.
+# auto = show the state on a Raspberry Pi's lights (count the blinks; red steady = recording); none = leave them alone.
 LEDS=auto
+# auto = a Raspberry Pi 5's power button stops everything and makes the disks safe to unplug (press again, or swap a
+# disk, to carry on), and held 3 seconds finishes the files and shuts down; none = it stays the power button. Either
+# way it's the power button again whenever videocap stops.
+BUTTON=auto
+# auto = broadcast the status as this machine's Bluetooth name, a line every 6 seconds (no pairing; read it with any
+# phone's Bluetooth scanner app, or python3 -m videocap.btreader); none = off.
+BLUETOOTH=auto
+# One Morse dot on the light, in ms (100 = 12 words a minute; a phone camera reads it).
+MORSE_UNIT_MS=100
 # Blank = found by themselves (the first USB capture device and the sound card on the same USB device).
 VIDEO_DEVICE=
 AUDIO_DEVICE=

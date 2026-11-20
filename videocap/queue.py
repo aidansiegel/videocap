@@ -46,6 +46,9 @@ class Queue:
         self.jobs = []
         self.progress = ""
         self.retry_at = 0
+        self.paused = False   # the disks are being made safe to unplug
+        self.busy = False     # moving or uploading something right now
+        self.proc = None      # the cp or rclone doing it
         try:
             with open(path) as f:
                 self.jobs = json.load(f)
@@ -255,7 +258,7 @@ class Queue:
             if os.path.exists(q) and subprocess.run(lowprio(["cmp", "-s", "--", p, q])).returncode == 0:
                 done += os.path.getsize(p)
                 continue  # copied before a restart
-            cp = subprocess.Popen(lowprio(["cp", "--", p, q + ".part"]), stdin=subprocess.DEVNULL)
+            cp = self.proc = subprocess.Popen(lowprio(["cp", "--", p, q + ".part"]), stdin=subprocess.DEVNULL)
             while cp.poll() is None:
                 time.sleep(2)
                 got = os.path.getsize(q + ".part") if os.path.exists(q + ".part") else 0
@@ -265,6 +268,10 @@ class Queue:
             if not cp.returncode:
                 with contextlib.suppress(OSError):
                     hardware.on_disk(q + ".part")  # compare what's really on the masters disk, not the memory cache
+            if self.paused:  # stopped for the disks to be unplugged: not a failure
+                with contextlib.suppress(OSError):
+                    os.remove(q + ".part")
+                return
             if cp.returncode or subprocess.run(lowprio(["cmp", "-s", "--", p, q + ".part"])).returncode:
                 with contextlib.suppress(OSError):
                     os.remove(q + ".part")
@@ -415,8 +422,8 @@ class Queue:
         if c["UPLOAD_BWLIMIT"]:
             cmd += ["--bwlimit", c["UPLOAD_BWLIMIT"]]
         log("uploading %s (%.1f GB) to %s" % (label, size / 1e9, self.remote(job, item["dest"], to)))
-        p = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
-                             text=True, errors="replace")
+        p = self.proc = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                         stderr=subprocess.PIPE, text=True, errors="replace")
         err = []
         for line in p.stderr:
             m = re.search(r"([\d.]+ \S*B) / ([\d.]+ \S*B), (\d+)%, ([\d.]+ \S*B/s)(?:, ETA (\S+))?", line)
@@ -432,6 +439,9 @@ class Queue:
         if ok:
             log("uploaded " + label)
             return self.mark(item, "done", "")
+        if self.paused:  # stopped for the disks to be unplugged: not a failure
+            item["note"] = "paused: the disks were made safe to unplug"
+            return
         item["tries"] += 1
         msg = (err[-1] if err else "rclone failed")[-200:]
         log("upload of %s failed: %s" % (label, msg))
@@ -458,17 +468,31 @@ class Queue:
                         return j, it
         return None, None
 
+    def pause(self):
+        """Stop moving and uploading now (the disks are about to be unplugged), and start nothing new until resume().
+        A copy cut off is dropped and done again later; it doesn't count as a failed try."""
+        self.paused = True
+        p = self.proc
+        if p and p.poll() is None:
+            p.terminate()
+
+    def resume(self):
+        self.paused = False
+
     def run(self):
         while True:
             time.sleep(2)
             ready = {c for c in [self.app.upload_card] + list(self.app.other_cards) if c}
-            if not ready or time.time() < self.retry_at:
+            if self.paused or not ready or time.time() < self.retry_at:
                 continue
             job, item = self.next_step(ready)
             if item:
+                self.busy = True
                 try:
                     self.upload(job, item)
                 except Exception as e:  # keep the queue alive
                     log("upload error: %r" % e)
                     self.retry_at = time.time() + 60
+                finally:
+                    self.busy, self.proc = False, None
                 self.progress = ""

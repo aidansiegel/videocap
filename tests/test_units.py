@@ -289,3 +289,206 @@ class SettingsTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LedTest(unittest.TestCase):
+    """The lights, on a fake /sys/class/leds."""
+
+    def make(self, d):
+        from videocap import hardware
+        for name, trig in (("ACT", "mmc0"), ("PWR", "default-on")):
+            os.makedirs(os.path.join(d, name))
+            for f, v in (("trigger", "none [%s] timer heartbeat" % trig), ("max_brightness", "255"), ("brightness", "0")):
+                with open(os.path.join(d, name, f), "w") as fh:
+                    fh.write(v)
+        cls = type("FakeLed", (hardware.Led,), {"ACT": os.path.join(d, "ACT"), "PWR": os.path.join(d, "PWR")})
+        return cls("auto")
+
+    def lit(self, d, name):
+        with open(os.path.join(d, name, "brightness")) as f:
+            return f.read() != "0"
+
+    def test_recording_is_steady_red(self):
+        with tempfile.TemporaryDirectory() as d:
+            led = self.make(d)
+            led.set("recording")
+            seen = set()
+            for _ in range(15):  # 1.5 s: red never goes out, green never comes on
+                time.sleep(0.1)
+                seen.add((self.lit(d, "ACT"), self.lit(d, "PWR")))
+            led.restore()
+            self.assertEqual(seen, {(False, True)})
+            with open(os.path.join(d, "ACT", "trigger")) as f:
+                self.assertEqual(f.read(), "mmc0")  # given back as it was
+
+    def test_counted_blinks(self):
+        with tempfile.TemporaryDirectory() as d:
+            led = self.make(d)
+            led.set("no-disk")  # two blinks, then a pause
+            samples = []
+            t0 = time.time()
+            while time.time() - t0 < 2.2:
+                samples.append(self.lit(d, "ACT"))
+                time.sleep(0.02)
+            led.restore()
+            ons = sum(1 for a, b in zip(samples, samples[1:]) if b and not a) + samples[0]
+            self.assertEqual(ons, 2)
+            self.assertNotIn(True, [self.lit(d, "PWR")])
+
+    def test_states_map_to_patterns(self):
+        from videocap import hardware
+        led = hardware.Led("none")  # no lights: set() still keeps track, for the page
+        led.set("ready")
+        self.assertEqual(led.cur, "no-picture")
+        led.set("error-stopped")
+        self.assertEqual(led.cur, "error-stopped")
+        led.set("something new")
+        self.assertEqual(led.cur, "done")
+
+
+class ButtonTest(unittest.TestCase):
+    """The button, fed key events through a pipe."""
+
+    def test_counts_and_hold(self):
+        from videocap import button
+        r, w = os.pipe()
+        counts, holds = [], []
+        b = button.Button("none", counts.append, lambda: holds.append(1), log=lambda m: None)
+        b.dev = "/dev/fd/%d" % r
+        old = button.HOLD_SEC, button.GAP_SEC
+        button.HOLD_SEC, button.GAP_SEC = 0.6, 0.25
+        try:
+            import threading
+            threading.Thread(target=b.run, daemon=True).start()
+            key = lambda v: os.write(w, button.EVENT.pack(0, 0, button.EV_KEY, button.KEY_POWER, v))
+            tap = lambda: (key(1), time.sleep(0.05), key(0), time.sleep(0.08))
+            os.write(w, button.EVENT.pack(0, 0, 0, 0, 0))  # a sync event: ignored
+            tap(); time.sleep(0.4)                         # one press
+            tap(); tap(); time.sleep(0.4)                  # two
+            tap(); tap(); tap(); time.sleep(0.4)           # three
+            self.assertEqual((counts, holds), ([1, 2, 3], []))
+            key(1); time.sleep(0.9)                        # held: counts while still held
+            self.assertEqual(holds, [1])
+            key(0); time.sleep(0.4)                        # and its release does nothing more
+            self.assertEqual((counts, holds), ([1, 2, 3], [1]))
+        finally:
+            button.HOLD_SEC, button.GAP_SEC = old
+            b.stopped = True
+            os.close(w)
+
+
+class MorseTest(unittest.TestCase):
+    def test_timings(self):
+        from videocap import morse
+        u = morse.UNIT_MS
+        self.assertEqual(morse.clean("rec B004_V001, 23m!"), "REC B004 V001 23M")
+        seq = morse.timings("ET A")
+        self.assertEqual(seq[0], (10 * u, 5 * u))           # sync flash
+        self.assertEqual(seq[1], (u, 3 * u))                # E ., then a letter gap
+        self.assertEqual(seq[2], (3 * u, 7 * u))            # T -, then a word gap
+        self.assertEqual(seq[3:5], [(u, u), (3 * u, 7 * u)])  # A .-, then the gap before the end sign
+        self.assertEqual(seq[5:], [(u, u), (3 * u, u), (u, u), (3 * u, u), (u, 10 * u)])  # AR .-.-.
+
+
+class RepairTest(unittest.TestCase):
+    """A disk pulled out without unmounting is looked over before it's mounted."""
+
+    def test_clean_fixed_and_beyond_repair(self):
+        from videocap import hardware
+        with tempfile.TemporaryDirectory() as d:
+            fsck = os.path.join(d, "fake-fsck")
+            old = dict(hardware.REPAIR)
+            try:
+                hardware.REPAIR["exfat"] = [fsck]
+                for code, ok in ((0, True), (1, True), (4, False)):
+                    with open(fsck, "w") as f:
+                        f.write("#!/bin/sh\necho 'checked %s'\nexit %d\n" % ("$1", code))
+                    os.chmod(fsck, 0o755)
+                    self.assertEqual(hardware.repair({"fstype": "exfat", "path": "/dev/sdz1", "label": "T"}), ok, code)
+                self.assertTrue(hardware.repair({"fstype": "btrfs", "path": "/dev/sdz2"}))  # journaled: left alone
+            finally:
+                hardware.REPAIR.clear()
+                hardware.REPAIR.update(old)
+
+
+@unittest.skipUnless(__import__("shutil").which("node"), "needs node")
+class ReaderTest(unittest.TestCase):
+    """The phone reader's decoder (docs/reader/morse.js) reads what the light sends, through a simulated camera."""
+
+    def read(self, text, fps, unit=None, trials=25):
+        import subprocess
+        from videocap import morse
+        seq = morse.timings(text, unit or morse.UNIT_MS)
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        r = subprocess.run(["node", os.path.join(root, "tests", "reader_sim.mjs"),
+                            json.dumps({"seq": seq, "fps": fps, "trials": trials, "seed": fps * 7 + len(text)})],
+                           capture_output=True, text=True, timeout=60)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        return json.loads(r.stdout)
+
+    def test_status_at_30_fps(self):
+        msg = "REC B004 V001 23M FREE 85G"
+        self.assertEqual(set(self.read(msg, 30)), {msg})
+
+    def test_address_at_24_fps(self):
+        msg = "IP 192.168.1.23 PORT 8091"
+        self.assertEqual(set(self.read(msg, 24)), {msg})
+
+    def test_every_character_at_60_fps(self):
+        from videocap import morse
+        msg = " ".join("".join(sorted(morse.CODE))[i:i + 6] for i in range(0, len(morse.CODE), 6))
+        self.assertEqual(set(self.read(msg, 60, trials=10)), {morse.clean(msg)})
+
+
+class CameraReaderTest(unittest.TestCase):
+    """python3 -m videocap.reader, fed synthetic camera frames: a dark scene, a steady red light, and the green light
+    sending a message at 30 fps, starting at a random moment."""
+
+    def test_reads_a_message(self):
+        import random
+        from videocap import morse, reader
+        rnd = random.Random(4)
+        msg = "IP 10.0.0.5 PORT 8091"
+        edges, t = [], 1800.0
+        for on, off in morse.timings(msg):
+            edges.append((t, t + on))
+            t += on + off
+        r = reader.Reader()
+        ft, frame = rnd.random() * 33, 1000 / 30
+        base = bytearray([30, 32, 34] * (reader.W * reader.H))
+        while ft < t + 1500:
+            px = bytearray(base)
+            for _ in range(20):  # noise
+                i = rnd.randrange(reader.W * reader.H) * 3
+                px[i + 1] = min(255, px[i + 1] + rnd.randrange(12))
+            share = sum(max(0, min(ft + frame * 0.9, b) - max(ft, a)) for a, b in edges) / (frame * 0.9)
+            for (x, y, rgb) in ((60, 30, (255, 40, 30)), (64, 30, (80, 255, 120) if share > 0.5 else (40, 60, 45))):
+                for dy in (-1, 0, 1):
+                    for dx in (-1, 0, 1):
+                        i = ((y + dy) * reader.W + x + dx) * 3
+                        px[i:i + 3] = bytes(rgb)
+            if r.frame(ft + rnd.uniform(-3, 3), bytes(px)):
+                break
+            ft += frame
+        self.assertTrue(r.dec.done, r.dec.partial)
+        self.assertEqual(r.dec.text, msg)
+        self.assertEqual(r.spot[0] in (63, 64, 65), True)  # the green light, not the red one
+
+
+class BluetoothTest(unittest.TestCase):
+    def test_name_data(self):
+        from videocap import beacon
+        self.assertEqual(beacon.name_data("V0 OK"), "060956302" + "04f4b")
+        self.assertEqual(len(bytes.fromhex(beacon.name_data("V0 " + "X" * 60))), 31)  # never more than fits
+
+    def test_collects_a_round(self):
+        from videocap.btreader import Collector
+        c = Collector()
+        for n in ("V2 MASTERS 120G FREE", "V3 CODES NONE"):  # joined partway through a round
+            c.add("aa", n)
+        self.assertFalse(c.complete("aa"))
+        c.add("aa", "something else")  # other devices' names are ignored
+        for n in ("V0 REC 23M B004V001 85G", "V1 NOW FRENCH TV"):
+            c.add("aa", n)
+        self.assertTrue(c.complete("aa"))
+        self.assertEqual(c.report("aa"), ["REC 23M B004V001 85G", "NOW FRENCH TV", "MASTERS 120G FREE", "CODES NONE"])

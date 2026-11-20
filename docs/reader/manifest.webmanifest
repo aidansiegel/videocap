@@ -1,0 +1,8 @@
+{
+  "name": "Videocap light reader",
+  "short_name": "Light reader",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#141518",
+  "theme_color": "#141518"
+}

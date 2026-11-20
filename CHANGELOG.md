@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased
+
+- **Run it without a screen:** the Pi's lights now say what's missing by counting (green 1 blink: capture device, 2:
+  disk, 3: everything's ready, press play), recording is a steady red light, and errors blink red 1, 2 or 3 times for
+  the kind. The page's Help shows the codes, marks the one showing now, and prints a card to keep with the station.
+- **Swapping disks blind:** a press of the Pi 5's power button stops any recording, pauses moves and uploads, and
+  unmounts everything on a USB disk (a system-mounted masters disk too, refusing to say it's safe while something
+  holds one), then the light goes steady green; swap, and it carries on by itself. The light no
+  longer says "no disk" while an earlier disk's masters are still being moved off it, a disk is unmounted as soon as
+  standing by ends, and a FAT or exFAT disk pulled out anyway is checked and fixed before anything is written to it.
+- **The status in Morse:** press the button twice and the green light spells out what it's doing (three times: its
+  network address). The **light reader** (docs/reader, on the project's GitHub Pages) reads it with a phone camera,
+  offline once opened: it finds the light by itself, learns the speed from a sync flash, and says what the message
+  means. Tested through a simulated camera from 15 to 60 frames a second.
+- **The status over Bluetooth:** the station broadcasts it as its Bluetooth name, a line every 6 seconds (V0 the gist,
+  up to V9), readable by any phone's scanner app with no pairing; `python3 -m videocap.btreader` collects a round on a
+  computer. **Error codes** E01-E10, the same on the light, over Bluetooth and on the page.
+- **Reading the light with a computer's camera:** `python3 -m videocap.reader`.
+- **Shutting down:** hold the power button 3 seconds to finish the files and power off. It's the power button again
+  whenever videocap isn't running.
+- **A weak power supply** shows as a warning on the page (the red light used to show it on some Pis).
+
 ## 0.0.1 alpha 3 (2026-11-18)
 
 - **A ready-made Raspberry Pi card:** download the image, write it with Raspberry Pi Imager, boot, open

@@ -96,6 +96,12 @@ The person's routine: type a title on the page (or load their list with *Item li
 walk away. Recording starts when the picture appears and stops by itself at the end. Then they watch it (Video
 selector → Captures) and press *Keep* or *Bad take*. Help is on the page (top right).
 
+With no screen (away from home, no network): the Pi's lights say what's going on (red steady = recording; green 1, 2
+or 3 blinks = no capture device, no disk, ready for play; red blinks = an error). On a Pi 5 a press of the power
+button makes the disks safe to unplug (steady green), and swapping a disk carries on; held 3 seconds it shuts down
+safely. The codes are in docs/guide.md and under Help, which
+prints a card. `/status.json` has the current code as `light`.
+
 ## Diagnosing
 
 | Symptom | Look at | Usual cause and fix |
@@ -107,6 +113,7 @@ selector → Captures) and press *Keep* or *Bad take*. Help is on the page (top 
 | "Not recording: only N GB free" | `df -h` | Not enough room for a master (`MASTER_MIN_FREE_GB`): make room or swap the disk |
 | Captures stuck "Uploading" or "Problem: …" | the capture's card on the page; `journalctl -u videocap -n 100` | Destination unreachable or full. Fix it, then press *Retry* on the card |
 | Frames or sound lost in many captures | the capture's damage line | Other heavy work on the station during capture (rule 4), a weak power supply, or the stick on a hub |
+| The power button powers the Pi off instead of making the disks safe | `systemd-inhibit --list` (videocap should hold handle-power-key); `journalctl -u videocap | grep button` | Videocap isn't running, `BUTTON=none`, or not a Pi 5 (no button) |
 
 Logs: `journalctl -u videocap -f` (live) or `-n 200`. Each capture also has a `.log` (the exact ffmpeg command and
 what happened) and a `.json` report beside its master. The page's data is at `/status.json` and `/settings.json`.

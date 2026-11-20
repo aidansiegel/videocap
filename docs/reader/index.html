@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#141518">
+<title>Videocap light reader</title>
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+/* Reads a videocap station's Morse light with the phone camera. Dark, so it doesn't glare at night by the deck. */
+:root{
+ --bg:#141518; --panel:#1f2125; --rule:#33363c; --text:#e4e1d9; --mut:#a3a098; --vfd:#62f5d2; --rec:#ff5a4d; --ok:#4ee38f;
+ --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+ --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;background:var(--bg);color:var(--text);font:16px/1.45 var(--sans)}
+main{max-width:560px;margin:0 auto;padding:16px 16px calc(24px + env(safe-area-inset-bottom))}
+h1{font-size:20px;margin:4px 0 2px}
+.lede{color:var(--mut);margin:0 0 14px;font-size:15px}
+.cam{position:relative;border-radius:12px;overflow:hidden;background:#000;aspect-ratio:4/3;border:1px solid var(--rule)}
+.cam video,.cam canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.cam canvas{touch-action:manipulation;cursor:crosshair}
+.cam .hint{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;color:var(--mut)}
+.status{margin:12px 2px 6px;font-size:15px;color:var(--mut);min-height:22px}
+.status b{color:var(--text)}
+.msg{background:var(--panel);border:1px solid var(--rule);border-radius:12px;padding:14px 14px 12px;margin:8px 0 12px}
+.msg .text{font:600 26px/1.25 var(--mono);color:var(--vfd);letter-spacing:.04em;overflow-wrap:anywhere;min-height:33px}
+.msg .text .wip{color:var(--mut)}
+.msg .plain{margin-top:6px;font-size:16px;min-height:23px}
+.msg .plain a{color:var(--vfd)}
+.scope{width:100%;height:56px;display:block;border-radius:8px;background:#0c0d0f;border:1px solid var(--rule)}
+.btns{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}
+button{appearance:none;min-height:44px;padding:0 18px;border-radius:8px;border:1px solid #4a4e55;background:#2a2d32;color:var(--text);
+ font:600 16px var(--sans);cursor:pointer}
+button.primary{background:#1f8a5a;border-color:#145c3c;color:#fff}
+button:focus-visible{outline:3px solid var(--vfd);outline-offset:2px}
+details{margin-top:14px;color:var(--mut);font-size:15px} summary{cursor:pointer;color:var(--text);min-height:44px;display:flex;align-items:center}
+details li{margin:6px 0}
+.err{color:var(--rec)}
+@media (prefers-color-scheme:light){
+ :root{--bg:#f4f2ec;--panel:#fff;--rule:#d6d2c8;--text:#1d1c1a;--mut:#5f5c55;--vfd:#007a62}
+ button{background:#fff;border-color:#bdb8ad} .scope{background:#fff} .cam{background:#000}
+}
+</style>
+</head>
+<body>
+<main>
+ <h1>Videocap light reader</h1>
+ <p class="lede">On the station, press the power button <b>twice</b> for its status, or <b>three times</b> for its
+ address. Hold the phone a hand's width from the green light.</p>
+
+ <div class="cam" id="cam">
+  <video id="video" playsinline muted></video>
+  <canvas id="overlay" aria-label="Camera view. Tap the green light if it isn't found by itself."></canvas>
+  <div class="hint" id="hint">The camera starts when you press Start.</div>
+ </div>
+
+ <p class="status" id="status" role="status" aria-live="polite"></p>
+
+ <section class="msg" aria-labelledby="msgtitle">
+  <h2 id="msgtitle" class="visually-hidden" style="position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)">Message</h2>
+  <div class="text" id="text" aria-live="polite"></div>
+  <div class="plain" id="plain"></div>
+ </section>
+
+ <canvas class="scope" id="scope" aria-hidden="true"></canvas>
+
+ <div class="btns">
+  <button class="primary" id="start">Start</button>
+  <button id="again" hidden>Read again</button>
+ </div>
+
+ <details>
+  <summary>If it doesn't read</summary>
+  <ul>
+   <li>Come closer, so the light is bigger than a grain of rice on the screen, and hold still.</li>
+   <li>If it locks onto the wrong spot, tap the green light in the picture.</li>
+   <li>Each message starts with a one-second flash. If you started late, press the button twice again.</li>
+   <li>By eye: it's Morse at 12 words a minute, after the long flash, ending with <code>.-.-.</code>.</li>
+  </ul>
+ </details>
+</main>
+<script type="module">
+import { Decoder, explain } from "./morse.js";
+
+const $ = id => document.getElementById(id);
+const video = $("video"), overlay = $("overlay"), scope = $("scope");
+const W = 96;                   // the picture is looked at this small: plenty to find a light
+let H = 72, small, sctx, octx = overlay.getContext("2d"), ctx2 = scope.getContext("2d");
+let mean = null, vari = null;   // per pixel: running brightness and how much it changes
+let roi = null, picked = false; // where the light is (in small pixels); picked = tapped by hand
+let samples = [];               // recent {t, v} of the light's brightness
+let history = [];               // the last few seconds of small frames' green channel, {t, g}: when the light is found,
+                                // they're replayed, so the start of its long flash isn't missed
+let lit = null, since = 0, frames = 0;
+const dec = new Decoder();
+let lastText = "";
+
+function setStatus(html, err) { $("status").innerHTML = err ? '<span class="err">' + html + "</span>" : html; }
+
+if (!window.isSecureContext) {
+  setStatus("This page needs to be opened over https to use the camera.", true);
+}
+if ("serviceWorker" in navigator && window.isSecureContext) navigator.serviceWorker.register("sw.js").catch(() => {});
+
+$("start").onclick = async () => {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: false,
+      video: { facingMode: { ideal: "environment" }, frameRate: { ideal: 60 }, width: { ideal: 1280 } } });
+    video.srcObject = stream;
+    await video.play();
+  } catch (e) {
+    setStatus(e && e.name === "NotAllowedError" ? "The camera is blocked. Allow it for this page in your browser's settings, then press Start."
+      : "Couldn't start the camera (" + (e && e.name || e) + ").", true);
+    return;
+  }
+  $("hint").hidden = true;
+  $("start").hidden = true;
+  $("again").hidden = false;
+  H = Math.round(W * video.videoHeight / video.videoWidth) || 72;
+  small = new OffscreenCanvas(W, H);
+  sctx = small.getContext("2d", { willReadFrequently: true });
+  setStatus("Looking for the light…");
+  next();
+};
+
+$("again").onclick = () => { dec.reset(); lastText = ""; show(); picked = false; roi = null; mean = null; setStatus("Looking for the light…"); };
+
+overlay.addEventListener("click", ev => {  // tap the light to pick it
+  const r = overlay.getBoundingClientRect();
+  // object-fit: cover crops the picture: map the tap back into it
+  const scale = Math.max(r.width / W, r.height / H), ox = (r.width - W * scale) / 2, oy = (r.height - H * scale) / 2;
+  picked = true;
+  watch({ x: Math.round((ev.clientX - r.left - ox) / scale), y: Math.round((ev.clientY - r.top - oy) / scale) });
+  show();
+  setStatus("Watching the spot you tapped.");
+});
+
+function next() {
+  if (video.requestVideoFrameCallback) video.requestVideoFrameCallback((now, meta) => { frame(meta.mediaTime * 1000 || now); next(); });
+  else requestAnimationFrame(now => { frame(now); next(); });
+}
+
+function frame(t) {
+  sctx.drawImage(video, 0, 0, W, H);
+  const px = sctx.getImageData(0, 0, W, H).data;
+  frames++;
+  const g = new Uint8Array(W * H);
+  for (let i = 0; i < W * H; i++) g[i] = px[i * 4 + 1];
+  history.push({ t, g });
+  while (history.length && history[0].t < t - 4000) history.shift();
+  if (!picked && !dec.started) findLight(px);
+  if (!roi) return drawOverlay();
+  sample(t, level(g));
+  drawOverlay();
+}
+
+// the light's brightness: the green channel around it (the red light next to it barely shows in green)
+function level(g) {
+  let sum = 0, n = 0;
+  for (let y = roi.y - 1; y <= roi.y + 1; y++) for (let x = roi.x - 1; x <= roi.x + 1; x++) {
+    if (x < 0 || y < 0 || x >= W || y >= H) continue;
+    sum += g[y * W + x]; n++;
+  }
+  return n ? sum / n : 0;
+}
+
+// a new spot to watch: start over from the frames already seen
+function watch(spot) {
+  roi = spot;
+  samples = []; lit = null;
+  dec.reset(); lastText = "";
+  for (const h of history.slice(0, -1)) sample(h.t, level(h.g), true);
+}
+
+function sample(t, v, replay) {
+  samples.push({ t, v });
+  while (samples.length && samples[0].t < t - 4000) samples.shift();
+  let lo = 255, hi = 0;
+  for (const s of samples) { lo = Math.min(lo, s.v); hi = Math.max(hi, s.v); }
+  const range = hi - lo;
+  if (range < 18) {  // nothing blinking here
+    if (!replay && frames % 30 === 0 && !dec.started)
+      setStatus(picked ? "No blinking at the spot you tapped. Tap the green light." : "Looking for the light…");
+    if (!replay) drawScope(lo, hi, null);
+    return;
+  }
+  // a threshold halfway between dark and lit, with a little stickiness so noise doesn't flip it
+  const mid = lo + range / 2, band = range * 0.08;
+  const now = lit === null ? v > mid : lit ? v > mid - band : v > mid + band;
+  if (lit === null) { lit = now; since = t; }
+  else if (now !== lit) { dec.run(lit, t - since); lit = now; since = t; if (!replay) show(); }
+  else if (!lit && dec.started && !dec.done && t - since >= 8 * dec.unit) { dec.run(false, t - since); since = t; if (!replay) show(); }  // dark longer than any gap in a message: it's over
+  if (!replay) drawScope(lo, hi, mid);
+}
+
+function findLight(px) {
+  // the spot that changes most is the blinking light; green, not the red one
+  const a = 0.08;
+  if (!mean) { mean = new Float32Array(W * H); vari = new Float32Array(W * H); }
+  let best = 0, bi = -1;
+  for (let i = 0; i < W * H; i++) {
+    const r = px[i * 4], g = px[i * 4 + 1];
+    const d = g - mean[i];
+    mean[i] += a * d;
+    vari[i] += a * (d * d - vari[i]);
+    const score = vari[i] * (g >= r * 0.8 ? 1 : 0.2);
+    if (score > best) { best = score; bi = i; }
+  }
+  if (bi >= 0 && best > 150 && frames % 10 === 0) {
+    const spot = { x: bi % W, y: Math.floor(bi / W) };
+    if (!roi || Math.abs(roi.x - spot.x) + Math.abs(roi.y - spot.y) > 3) {
+      watch(spot);
+      show();
+    }
+    if (!dec.started) setStatus("Found a light. Waiting for the long flash that starts a message…");
+  }
+}
+
+function show() {
+  const done = dec.done;
+  const t = done ? dec.text : dec.partial;
+  if (t === lastText && !done) return;
+  lastText = t;
+  const m = t.match(/^(.*?)(\[[.-]*\])?$/);
+  $("text").innerHTML = esc(m[1]) + (m[2] ? '<span class="wip">' + esc(m[2]) + "</span>" : "");
+  if (dec.started && !done) setStatus("Reading… <b>" + dec.wpm + " words a minute</b>");
+  if (done) {
+    const plain = explain(dec.text);
+    $("plain").innerHTML = linkify(esc(plain));
+    setStatus("<b>Got it.</b> Press the button again for a new reading, or Read again.");
+    if (navigator.vibrate) navigator.vibrate(60);
+  } else if (!dec.started) $("plain").textContent = "";
+}
+
+const esc = s => s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const linkify = s => s.replace(/http:\/\/[\d.]+(?::\d+)?\//g, u => '<a href="' + u + '">' + u + "</a>");
+
+function drawOverlay() {
+  const r = overlay.getBoundingClientRect(), dpr = devicePixelRatio || 1;
+  if (overlay.width !== Math.round(r.width * dpr)) { overlay.width = Math.round(r.width * dpr); overlay.height = Math.round(r.height * dpr); }
+  octx.clearRect(0, 0, overlay.width, overlay.height);
+  if (!roi) return;
+  const scale = Math.max(r.width / W, r.height / H), ox = (r.width - W * scale) / 2, oy = (r.height - H * scale) / 2;
+  const cx = (ox + (roi.x + 0.5) * scale) * dpr, cy = (oy + (roi.y + 0.5) * scale) * dpr, rad = Math.max(14, scale * 2.5) * dpr;
+  octx.lineWidth = 3 * dpr;
+  octx.strokeStyle = lit ? "#62f5d2" : "rgba(255,255,255,.75)";
+  octx.beginPath(); octx.arc(cx, cy, rad, 0, Math.PI * 2); octx.stroke();
+}
+
+function drawScope(lo, hi, mid) {
+  const dpr = devicePixelRatio || 1, w = scope.clientWidth * dpr, h = scope.clientHeight * dpr;
+  if (scope.width !== w) { scope.width = w; scope.height = h; }
+  ctx2.clearRect(0, 0, w, h);
+  if (samples.length < 2) return;
+  const t1 = samples[samples.length - 1].t, t0 = t1 - 4000, y = v => h - 4 - (v - lo) / Math.max(1, hi - lo) * (h - 8);
+  if (mid !== null) { ctx2.strokeStyle = "rgba(255,255,255,.25)"; ctx2.beginPath(); ctx2.moveTo(0, y(mid)); ctx2.lineTo(w, y(mid)); ctx2.stroke(); }
+  ctx2.strokeStyle = "#62f5d2"; ctx2.lineWidth = 2 * dpr; ctx2.beginPath();
+  samples.forEach((s, i) => { const x = (s.t - t0) / 4000 * w; i ? ctx2.lineTo(x, y(s.v)) : ctx2.moveTo(x, y(s.v)); });
+  ctx2.stroke();
+}
+</script>
+</body>
+</html>
