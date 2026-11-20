@@ -327,14 +327,16 @@ dialog .btns .lbtn:first-child{margin-right:auto}
 .ld.g{--c:#3dff7a} .ld.r{--c:#ff3b30}
 .ld.on{background:var(--c);box-shadow:0 0 8px var(--c)}
 .ld.b1,.ld.b2,.ld.b3,.ld.fast,.ld.mostly{animation:1.8s step-end infinite b1}
+.ld.slow{animation:2s step-end infinite slow}
 .ld.b2{animation-name:b2;animation-duration:2.35s} .ld.b3{animation-name:b3;animation-duration:2.9s}
 .ld.fast{animation-name:fast;animation-duration:.16s} .ld.mostly{animation-name:mostly;animation-duration:1.52s}
 @keyframes b1{0%{background:var(--c)}11.1%{background:#2b2e33}}
 @keyframes b2{0%{background:var(--c)}8.5%{background:#2b2e33}23.4%{background:var(--c)}31.9%{background:#2b2e33}}
 @keyframes b3{0%{background:var(--c)}6.9%{background:#2b2e33}19%{background:var(--c)}25.9%{background:#2b2e33}37.9%{background:var(--c)}44.8%{background:#2b2e33}}
+@keyframes slow{0%{background:var(--c)}50%{background:#2b2e33}}
 @keyframes fast{0%{background:var(--c)}50%{background:#2b2e33}}
 @keyframes mostly{0%{background:var(--c)}92.1%{background:#2b2e33}}
-@media (prefers-reduced-motion:reduce){.ld{animation:none!important}.ld.b1,.ld.b2,.ld.b3,.ld.fast,.ld.mostly{background:var(--c)}}
+@media (prefers-reduced-motion:reduce){.ld{animation:none!important}.ld.b1,.ld.b2,.ld.b3,.ld.fast,.ld.mostly,.ld.slow{background:var(--c)}}
 .last{font-size:13px;color:var(--faint);margin:14px 2px 0;overflow-wrap:anywhere}
 .last:empty{display:none}
 .lost{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);background:var(--rec);color:#fff;padding:10px 16px;border-radius:999px;
@@ -468,7 +470,7 @@ times</b>, its network address. Read it with the <a href="https://aidansiegel.gi
 reader</a> on your phone (open it once at home and it works offline). <b>Hold the button 3 seconds</b> to shut down;
 unplug the power once the red light stays on.</p>
 <table class="lights" aria-labelledby="lightstitle"><tbody id="lightrows"></tbody></table>
-<div class="btns"><button class="lbtn" id="lightprint">Print a card</button></div>
+<div class="btns"><button class="lbtn" id="lightprint">Print a light card</button></div>
 </dialog>
 </div>
 <dialog id="listdlg">
@@ -661,7 +663,7 @@ $('setupdlg').addEventListener('close',()=>{$('setupbtn').focus();refresh()});
 $('helpbtn').onclick=()=>$('helpdlg').showModal();
 // the lights: [code from the station, light, how it acts, what it means]. hardware.Led's PATTERNS, in words
 const LIGHTS=[
- ['recording','r on','Red, steady','Recording'],
+ ['recording','r slow','Red, 1 second on, 1 second off','Recording'],
  ['no-picture','g b3','Green, 3 blinks, pause','Ready: everything is plugged in. Press play (it records from the first frame)'],
  ['no-disk','g b2','Green, 2 blinks, pause','Connect the capture disk'],
  ['no-device','g b1','Green, 1 blink, pause','Plug in the capture device'],
@@ -680,7 +682,7 @@ function showLight(code){document.querySelectorAll('#lightrows tr').forEach(r=>{
 $('lightprint').onclick=()=>{
  // a card to keep with the station: black on white, Letter, the blinks drawn as dots so it reads in grayscale
  const dots=c=>{const m={b1:1,b2:2,b3:3}[c.split(' ')[1]],dot='\u25cf';
-  return m?(dot+' ').repeat(m)+'<span class="pause">pause</span>':c.includes('on')?'<span class="steady">'+dot+' steady</span>':c.includes('fast')?'\u25cf\u25cf\u25cf\u25cf flicker':'\u25cf\u2014\u2014\u2014 short off';};
+  return m?(dot+' ').repeat(m)+'<span class="pause">pause</span>':c.includes('slow')?'\u25cf 1 s on, 1 s off':c.includes('on')?'<span class="steady">'+dot+' steady</span>':c.includes('fast')?'\u25cf\u25cf\u25cf\u25cf flicker':'\u25cf\u2014\u2014\u2014 short off';};
  const rows=LIGHTS.map(([k,c,how,what])=>'<tr><td class="col">'+(c[0]=='r'?'RED':'GREEN')+'</td><td class="pat">'+dots(c)+'</td><td>'+what+'</td></tr>').join('');
  const w=window.open('','videocap-lights');if(!w)return;
  w.document.write('<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Videocap lights</title><style>'+

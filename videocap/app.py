@@ -331,8 +331,21 @@ class App:
 
     # --- recording ------------------------------------------------------------------
 
+    @staticmethod
+    def dated_item(when):
+        """The item for a take with no name: titled by when its picture started ("Nov 19, 2026, 9:42 PM"), its files
+        by the same moment in a form that sorts ("2026-11-19 2142")."""
+        t = datetime.fromtimestamp(when)
+        title = "%s %d, %d, %d:%02d %s" % (t.strftime("%b"), t.day, t.year, t.hour % 12 or 12, t.minute,
+                                           "AM" if t.hour < 12 else "PM")
+        item = collection.make_item({"title": title, "file": t.strftime("%Y-%m-%d %H%M")})
+        item["dated"] = True
+        return item
+
     def take_base(self, folder, item, when=None):
         when = datetime.fromtimestamp(when) if when else datetime.now()
+        if item and item.get("dated"):  # its name is already the time
+            return os.path.join(folder, item["file"])
         if item:  # the capture time keeps every take of an item apart
             return os.path.join(folder, "%s - captured %s" % (item["file"], when.strftime("%Y-%m-%d %H%M")))
         nums = [int(m.group(1)) for m in (re.match(r"capture(\d+)_", n) for n in os.listdir(folder)) if m]
@@ -421,11 +434,18 @@ class App:
             save_json(rec.base + ".json", report)
 
     def rename_take(self, rec):
-        """Files are named when recording starts; a name typed or changed since renames them now."""
+        """Files are named when recording starts; a name typed or changed since renames them now. A take with no name
+        is named by when its picture started (not when standing by began, which can be minutes before play)."""
+        if not rec.item and rec.motion_seen:
+            rec.item = self.dated_item(rec.signal_at or rec.first_frame_at or rec.started)
         if not rec.item:
             return
         folder = os.path.dirname(rec.base)
         new = self.take_base(folder, rec.item, rec.started)
+        if rec.item.get("dated"):  # two takes in one minute: the second is "... (2)"
+            first, n = new, 2
+            while new != rec.base and glob.glob(glob.escape(new) + "[._]*"):
+                new, n = "%s (%d)" % (first, n), n + 1
         if new == rec.base or glob.glob(glob.escape(new) + "[._]*"):
             return
         done = []
@@ -487,7 +507,7 @@ class App:
         name = (rec.item["id"] or rec.item["title"]) if rec.item else os.path.basename(rec.base)
         self.last_result = "%s: %s. Capture: %s" % (name, reason, rec.damage.summary())
         log("%s capture: %s" % (name, rec.damage.summary()))
-        if not error and rec.motion_seen and not held:  # on to the next: the listed item after this one, if any
+        if not error and rec.motion_seen and not held and not rec.item.get("dated"):  # on to the listed item after this one
             ids = [t["id"] for t in self.items]
             done = rec.item["id"] if rec.item and rec.item["id"] in ids else self.next_item
             i = ids.index(done) + 1 if done in ids else len(ids)
@@ -980,6 +1000,18 @@ class App:
         if hardware.undervoltage():  # the red light would have shown it, but it's videocap's now
             out.append("The power supply is too weak: the Pi has dropped below its voltage. Use the official supply; "
                        "a weak one can drop frames or stop a recording.")
+        if self.dev and self.dev[0] != "test":  # only the sticks with a profile have been tested
+            name = self.dev[2]
+            fits = settings.suggest_profile(name)
+            if fits == "generic":
+                tested = ", ".join(p["label"] for p in settings.profiles() if p["match"])
+                out.append("%s isn't a tested capture device. It should record, but it may not notice when play is "
+                           "pressed (standby can miss the start), the picture may comb on motion (field order), or "
+                           "sound may drift out of sync. Tested: %s. docs/profiles.md shows how to check and set it up."
+                           % (name, tested or "none yet"))
+            elif fits != self.conf["PROFILE"]:
+                out.append("This looks like a %s, but the settings use the %s profile: Setup, Capture stick."
+                           % (next(p["label"] for p in settings.profiles() if p["id"] == fits), self.conf["PROFILE"]))
         need = self.f("MASTER_MIN_FREE_GB")
         if masters_free is None or need <= 0 or masters_free >= 2 * need:
             return out

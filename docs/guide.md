@@ -134,7 +134,7 @@ screen, phone or network. Count the blinks. **Print a card** under Help on the p
 
 | Light | Meaning |
 | --- | --- |
-| Red, steady | Recording |
+| Red, 1 second on, 1 second off | Recording |
 | Green, 3 blinks, pause | Ready: everything is plugged in. Press play (it records from the first frame) |
 | Green, 2 blinks, pause | Connect the capture disk |
 | Green, 1 blink, pause | Plug in the capture device |
@@ -201,6 +201,11 @@ It's a broadcast only: nothing can connect to the station this way. `BLUETOOTH=n
 | E08 | Power supply too weak |
 | E09 | Masters disk nearly full |
 | E10 | An upload or move failed |
+
+**Capture devices:** the ones with a profile in `videocap/profiles` are tested (so far the Hauppauge USB-Live2 Rev
+E1). Any other still records, with a note on the page about what might be off: it may not notice play (so standby can
+miss the start), the picture may comb on motion, or the sound may drift. [profiles.md](profiles.md) shows how to check
+one and write its profile.
 
 **Reading the light with a computer's camera:** `python3 -m videocap.reader` (on a Mac, run it in Terminal, which
 asks for camera permission). Point the camera at the station and press its button twice or three times.

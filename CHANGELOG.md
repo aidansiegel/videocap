@@ -2,8 +2,16 @@
 
 ## Unreleased
 
+- **Untitled takes are named by when the picture started:** files `2026-11-19 2142`, titled "Nov 19, 2026, 9:42 PM"
+  (not when standby began); two in one minute get "(2)", and an untitled take doesn't move the list on.
+- **Recording is red, 1 second on and 1 second off**, so steady red means only that the Pi is off.
+- **A webcam is never taken for the capture device**, whatever order they're found in (`CAMERA` names an optional
+  webcam for add-ons), and a proper capture chip comes before a UVC device.
+- **Untested capture devices** (no profile) still record, with a note on the page about what might be off; a stick
+  that doesn't match the chosen profile is pointed out.
+
 - **Run it without a screen:** the Pi's lights now say what's missing by counting (green 1 blink: capture device, 2:
-  disk, 3: everything's ready, press play), recording is a steady red light, and errors blink red 1, 2 or 3 times for
+  disk, 3: everything's ready, press play), recording is red, 1 second on and 1 second off, and errors blink red 1, 2 or 3 times for
   the kind. The page's Help shows the codes, marks the one showing now, and prints a card to keep with the station.
 - **Swapping disks blind:** a press of the Pi 5's power button stops any recording, pauses moves and uploads, and
   unmounts everything on a USB disk (a system-mounted masters disk too, refusing to say it's safe while something

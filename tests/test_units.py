@@ -308,16 +308,19 @@ class LedTest(unittest.TestCase):
         with open(os.path.join(d, name, "brightness")) as f:
             return f.read() != "0"
 
-    def test_recording_is_steady_red(self):
+    def test_recording_is_red_one_second_on_one_off(self):
         with tempfile.TemporaryDirectory() as d:
             led = self.make(d)
             led.set("recording")
-            seen = set()
-            for _ in range(15):  # 1.5 s: red never goes out, green never comes on
+            red = []
+            for _ in range(28):  # 2.8 s: red on about 1 s, off about 1 s; green never comes on
                 time.sleep(0.1)
-                seen.add((self.lit(d, "ACT"), self.lit(d, "PWR")))
+                red.append(self.lit(d, "PWR"))
+                self.assertFalse(self.lit(d, "ACT"))
             led.restore()
-            self.assertEqual(seen, {(False, True)})
+            runs = [len(list(g)) for _, g in __import__("itertools").groupby(red)]
+            self.assertTrue(red[0] and red[-1])                # on, off, on again
+            self.assertTrue(all(8 <= n <= 11 for n in runs[:2]), runs)
             with open(os.path.join(d, "ACT", "trigger")) as f:
                 self.assertEqual(f.read(), "mmc0")  # given back as it was
 
@@ -492,3 +495,15 @@ class BluetoothTest(unittest.TestCase):
             c.add("aa", n)
         self.assertTrue(c.complete("aa"))
         self.assertEqual(c.report("aa"), ["REC 23M B004V001 85G", "NOW FRENCH TV", "MASTERS 120G FREE", "CODES NONE"])
+
+
+class DatedNameTest(unittest.TestCase):
+    def test_untitled_take_is_named_by_its_start(self):
+        from datetime import datetime
+        from videocap.app import App
+        when = datetime(2026, 11, 19, 21, 42, 30).timestamp()
+        item = App.dated_item(when)
+        self.assertEqual(item["title"], "Nov 19, 2026, 9:42 PM")
+        self.assertEqual(item["file"], "2026-11-19 2142")
+        self.assertEqual(App.take_base(None, "/x", item), "/x/2026-11-19 2142")
+        self.assertEqual(App.dated_item(datetime(2026, 1, 5, 0, 7).timestamp())["title"], "Jan 5, 2026, 12:07 AM")

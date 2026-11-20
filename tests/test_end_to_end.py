@@ -188,6 +188,21 @@ class EndToEnd(unittest.TestCase):
         self.assertEqual(self.post("start"), 204)  # REC carries on
         self.wait_for("recording again", lambda s: s["recording"] and s["light"] == "recording")
 
+    def test_untitled_take_named_by_its_start(self):
+        """No list and nothing typed: the take is named by when its picture started."""
+        os.remove(os.path.join(self.dir, "items.csv"))
+        with open(self.conf, "a") as f:
+            f.write("ITEM_LIST=\n")
+        self.proc.terminate(); self.proc.wait(30)
+        env = dict(os.environ, VIDEOCAP_RUN=os.path.join(self.dir, "run"), VIDEOCAP_STATE=os.path.join(self.dir, "state2"),
+                   PYTHONPATH=ROOT)
+        self.proc = subprocess.Popen([sys.executable, "-m", "videocap", "--conf", self.conf], cwd=self.dir, env=env,
+                                     stdout=self.out, stderr=subprocess.STDOUT)
+        s = self.wait_for("a finished take", lambda s: s["uploads"])
+        name = s["uploads"][0]["name"]
+        self.assertRegex(name, r"^20\d\d-\d\d-\d\d \d{4}( \(\d+\))?$")
+        self.assertTrue(os.path.exists(os.path.join(self.card, "captures", name + ".log")))
+
 
 if __name__ == "__main__":
     unittest.main()

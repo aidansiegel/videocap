@@ -27,6 +27,7 @@ DEFAULTS = {
     "PROFILE": "generic",
     "STANDARD": "NTSC",            # NTSC or PAL
     "INPUT": "auto",               # auto (S-Video first, then composite), svideo, composite
+    "CAMERA": "auto",              # an optional webcam (add-ons; never the capture device): auto, /dev/videoN, or none
     "VIDEO_DEVICE": "",            # blank = the first USB video capture device, e.g. /dev/video0
     "AUDIO_DEVICE": "",            # blank = the sound card on the same USB device, e.g. hw:CARD=Audio,DEV=0
     "V4L2_INPUT_FORMAT": "yuyv422",

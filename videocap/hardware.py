@@ -92,7 +92,7 @@ def blinks(n, on=200, gap=350, pause=1600):
 class Led:
     """A Raspberry Pi's lights say what the station is doing, so it can run without a screen.
 
-    Red is recording (steady) or an error (blinking, counted). Green blinks a count for what's missing, then pauses:
+    Red is recording (1 s on, 1 s off) or an error (short blinks, counted; steady red is the Pi off). Green blinks a count for what's missing, then pauses:
     1 = the capture device, 2 = the disk, 3 = the picture (everything is plugged in: press play). Fast green flicker:
     finishing the files, don't unplug anything. Mostly on: uploading. Solid green: done, safe to unplug the disk.
     """
@@ -104,7 +104,7 @@ class Led:
         "no-device": (blinks(1), OFF),
         "no-disk": (blinks(2), OFF),
         "no-picture": (blinks(3), OFF),
-        "recording": (OFF, ON),
+        "recording": (OFF, [(1000, 1000)]),  # 1 s on, 1 s off: steady red is left to mean the Pi is off
         "finishing": ([(80, 80)], OFF),
         "uploading": ([(1400, 120)], OFF),
         "done": (ON, OFF),
@@ -239,19 +239,53 @@ def usb_root(path):
     return path
 
 
-def find_video(conf):
-    """(device node, owning USB device path, driver name), or None."""
-    if conf["TEST_SOURCE"]:
-        return ("test", None, "test source")
-    candidates = sorted(glob.glob("/sys/class/video4linux/video*"))
-    if conf["VIDEO_DEVICE"]:
-        candidates = ["/sys/class/video4linux/" + os.path.basename(conf["VIDEO_DEVICE"])]
-    for p in candidates:
+def usb_video():
+    """USB video devices (the first node of each), as dicts: dev, sys, usb (its USB device), driver, name."""
+    out = []
+    for p in sorted(glob.glob("/sys/class/video4linux/video*"), key=lambda p: int(re.sub(r"\D", "", p) or 0)):
         real = os.path.realpath(p + "/device")
         if "/usb" not in real or read(p + "/index") not in ("", "0"):
             continue
+        out.append({"dev": "/dev/" + os.path.basename(p), "sys": p, "usb": usb_root(real), "name": read(p + "/name"),
+                    "driver": os.path.basename(os.path.realpath(p + "/device/driver"))})
+    return out
+
+
+def is_webcam(v):
+    """A USB webcam (UVC, calling itself a camera), as opposed to a capture stick. Some cheap capture sticks are UVC
+    too, but they don't call themselves cameras."""
+    return v["driver"] == "uvcvideo" and re.search(r"cam", v["name"], re.I) is not None
+
+
+def find_camera(conf):
+    """The station's optional webcam (for add-ons): CAMERA, or the first USB webcam; None if
+    CAMERA=none or there isn't one. Never the capture device."""
+    want = conf.get("CAMERA", "auto")
+    if want == "none":
+        return None
+    if want not in ("", "auto"):
+        return want
+    cap = conf["VIDEO_DEVICE"]
+    return next((v["dev"] for v in usb_video() if is_webcam(v) and v["dev"] != cap), None)
+
+
+def find_video(conf):
+    """(device node, owning USB device path, driver name), or None. Never the station's webcam: with both plugged
+    in, the capture device can't be mistaken for the camera, whatever order they're found in. A proper capture chip
+    (em28xx, cx231xx, ...) comes before a UVC device."""
+    if conf["TEST_SOURCE"]:
+        return ("test", None, "test source")
+    if conf["VIDEO_DEVICE"]:
+        p = "/sys/class/video4linux/" + os.path.basename(conf["VIDEO_DEVICE"])
+        if not os.path.exists(p):
+            return None
         dev = "/dev/" + os.path.basename(p)
-        return (dev, usb_root(real), card_name(dev) or read(p + "/name"))
+        return (dev, usb_root(os.path.realpath(p + "/device")), card_name(dev) or read(p + "/name"))
+    cam = find_camera(conf)
+    found = [v for v in usb_video() if v["dev"] != cam and not is_webcam(v)]
+    found.sort(key=lambda v: v["driver"] == "uvcvideo")
+    for v in found:
+        return (v["dev"], v["usb"], card_name(v["dev"]) or v["name"])
     return None
 
 

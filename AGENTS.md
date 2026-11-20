@@ -96,7 +96,7 @@ The person's routine: type a title on the page (or load their list with *Item li
 walk away. Recording starts when the picture appears and stops by itself at the end. Then they watch it (Video
 selector → Captures) and press *Keep* or *Bad take*. Help is on the page (top right).
 
-With no screen (away from home, no network): the Pi's lights say what's going on (red steady = recording; green 1, 2
+With no screen (away from home, no network): the Pi's lights say what's going on (red 1 s on, 1 s off = recording; green 1, 2
 or 3 blinks = no capture device, no disk, ready for play; red blinks = an error). On a Pi 5 a press of the power
 button makes the disks safe to unplug (steady green), and swapping a disk carries on; held 3 seconds it shuts down
 safely. The codes are in docs/guide.md and under Help, which
