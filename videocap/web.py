@@ -152,6 +152,8 @@ def handler(app):
             elif self.path == "/tell":  # what 2 and 3 presses of the button do: status or address, in Morse
                 what = self.body(20)
                 app.tell(app.morse_address() if what == "address" else app.morse_status())
+            elif self.path == "/note":  # a note on the end of the take's file name ("" clears it)
+                app.set_note(self.body(40))
             elif self.path == "/retry":
                 app.queue.retry()
             elif self.path == "/approve":

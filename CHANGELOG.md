@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Pen and paper, with an optional webcam:** circle a command word and write what it needs after it. (NOTE) A puts
+  `_A` on the end of the take's file names; (STOP), (SAFE) and (STATUS) do what the button does. Read offline with
+  numpy and Tesseract, only when the view changes and holds still. Notes can also be set with POST /note.
 - **Untitled takes are named by when the picture started:** files `2026-11-19 2142`, titled "Nov 19, 2026, 9:42 PM"
   (not when standby began); two in one minute get "(2)", and an untitled take doesn't move the list on.
 - **Recording is red, 1 second on and 1 second off**, so steady red means only that the Pi is off.

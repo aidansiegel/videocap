@@ -8,3 +8,5 @@ avahi-utils
 exfatprogs
 curl
 git
+tesseract-ocr
+python3-numpy

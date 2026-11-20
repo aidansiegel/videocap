@@ -507,3 +507,29 @@ class DatedNameTest(unittest.TestCase):
         self.assertEqual(item["file"], "2026-11-19 2142")
         self.assertEqual(App.take_base(None, "/x", item), "/x/2026-11-19 2142")
         self.assertEqual(App.dated_item(datetime(2026, 1, 5, 0, 7).timestamp())["title"], "Jan 5, 2026, 12:07 AM")
+
+
+class PaperTest(unittest.TestCase):
+    """Finding the circled word on a sheet (the geometry; Tesseract's reading is checked on the station)."""
+
+    def test_finds_the_circle_and_whats_inside(self):
+        try:
+            import numpy as np
+        except ImportError:
+            self.skipTest("needs numpy")
+        from videocap import paper
+        h, w = paper.H // paper.S, paper.W // paper.S
+        g = np.full((h, w), 40, np.uint8)            # a dark room
+        g[20:160, 30:300] = 230                      # the sheet
+        yy, xx = np.mgrid[0:h, 0:w]
+        r = np.sqrt(((xx - 110) / 55.0) ** 2 + ((yy - 90) / 30.0) ** 2)
+        g[(r > 0.92) & (r < 1.05)] = 30             # a pen circle
+        g[84:96, 80:140] = 25                        # writing inside it
+        g[82:98, 200:215] = 25                       # and an uncircled mark after it
+        region = paper.paper_region(g.astype(float))
+        self.assertIsNotNone(region)
+        inside = paper.find_circle(paper.ink(g.astype(float)) & region)
+        self.assertIsNotNone(inside)
+        ct, cb, cl, cr = inside
+        self.assertTrue(ct < 84 and cb > 96 and cl < 80 and cr > 140, inside)   # the writing is inside
+        self.assertTrue(cr < 200, inside)                                       # the mark after it isn't

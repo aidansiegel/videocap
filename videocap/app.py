@@ -18,7 +18,7 @@ import threading
 import time
 from datetime import datetime
 
-from . import beacon, button, collection, config, hardware, live, mdns, morse, settings
+from . import beacon, button, collection, config, hardware, live, mdns, morse, paper, settings
 from .hardware import log
 from .queue import Queue
 from .recording import Recording
@@ -53,6 +53,9 @@ class App:
         self.checked = set()         # disks looked over (hardware.repair) since they were plugged in
         self.button = None
         self.beacon = None
+        self.paper = None             # reads circled words with an optional webcam
+        self.camera_check = 0.0       # when to look for a webcam again
+        self.next_note = ""          # a note for the next take's file name (NOTE on paper), until a take uses it
         self.telling = None          # (the Morse message on the light now, when it ends)
         self.last_card_id = None
         self.last_signal = False
@@ -182,6 +185,23 @@ class App:
         """An item's picture shape: its aspect column, else the ASPECT setting (4:3 unless set)."""
         t = self.item(tid)
         return (t and t.get("aspect")) or collection.aspect(self.conf["ASPECT"]) or "4:3"
+
+    @staticmethod
+    def clean_note(text):
+        """A note as it goes in a file name: capital letters and digits, up to 12."""
+        return re.sub(r"[^A-Z0-9]", "", str(text).upper())[:12]
+
+    def set_note(self, text):
+        """A note on the end of the take's file name ("_A"): the take recording now, or the one standing by, or else
+        the next. The files get it when the take is finished. Returns the note as kept ("" clears it)."""
+        note = self.clean_note(text)
+        rec = self.rec
+        if rec:
+            rec.note_suffix = note
+        if not rec or rec.standby:
+            self.next_note = note
+        log("note for %s: %s" % ("this take" if rec and not rec.standby else "the next take", note or "(none)"))
+        return note
 
     def set_aspect(self, a):
         """The next capture's picture shape, from the page. A standby recording starts over with it, since it becomes
@@ -391,6 +411,7 @@ class App:
             rconf = dict(self.conf, ASPECT=self.next_aspect, LIVE_PORT=str(self.live.port))
             self.rec = Recording(rconf, dev, audio, base, mode, card.get("fstype") == "vfat", SNAP)
             self.rec.aspect = self.next_aspect
+            self.rec.note_suffix = self.next_note
         except OSError as e:
             self.pause_others(False)
             self.unmount()
@@ -438,11 +459,12 @@ class App:
         is named by when its picture started (not when standing by began, which can be minutes before play)."""
         if not rec.item and rec.motion_seen:
             rec.item = self.dated_item(rec.signal_at or rec.first_frame_at or rec.started)
-        if not rec.item:
+        note = getattr(rec, "note_suffix", "")
+        if not rec.item and not note:
             return
         folder = os.path.dirname(rec.base)
-        new = self.take_base(folder, rec.item, rec.started)
-        if rec.item.get("dated"):  # two takes in one minute: the second is "... (2)"
+        new = (self.take_base(folder, rec.item, rec.started) if rec.item else rec.base) + ("_" + note if note else "")
+        if rec.item and rec.item.get("dated"):  # two takes in one minute: the second is "... (2)"
             first, n = new, 2
             while new != rec.base and glob.glob(glob.escape(new) + "[._]*"):
                 new, n = "%s (%d)" % (first, n), n + 1
@@ -486,6 +508,8 @@ class App:
                     f.write("videocap MP4 starts %.3f s into the recording (the wait before the picture is cut; the "
                             "master keeps it)\n" % cut)
         self.pause_others(False)
+        if rec.motion_seen and getattr(rec, "note_suffix", "") == self.next_note:
+            self.next_note = ""  # used
         held = by_hand or short
         if rec.motion_seen:
             self.write_report(rec, reason, error, held)
@@ -507,7 +531,7 @@ class App:
         name = (rec.item["id"] or rec.item["title"]) if rec.item else os.path.basename(rec.base)
         self.last_result = "%s: %s. Capture: %s" % (name, reason, rec.damage.summary())
         log("%s capture: %s" % (name, rec.damage.summary()))
-        if not error and rec.motion_seen and not held and not rec.item.get("dated"):  # on to the listed item after this one
+        if not error and rec.motion_seen and not held and not (rec.item or {}).get("dated"):  # on to the listed item after this one
             ids = [t["id"] for t in self.items]
             done = rec.item["id"] if rec.item and rec.item["id"] in ids else self.next_item
             i = ids.index(done) + 1 if done in ids else len(ids)
@@ -767,6 +791,35 @@ class App:
         port = self.conf["WEB_PORT"]
         return ("IP " + " ".join(ips) + ("" if port == "80" else " PORT " + port)) if ips else "NO NETWORK"
 
+    def on_paper(self, cmd, arg):
+        """A circled word on paper, held up to the webcam (paper.COMMANDS), and what's written after it."""
+        log("paper: %s %s" % (cmd, arg))
+        self.led.flash()
+        if cmd == "NOTE":
+            note = self.set_note(arg)
+            self.tell("NOTE " + note if note else "NOTE CLEARED")
+        elif cmd == "STOP":
+            if self.rec:
+                self.stop_reason = "stopped with the button"  # by hand: held for review, like the button
+                self.stop_requested = True
+        elif cmd == "SAFE":
+            if not self.eject:
+                self.eject = True
+        elif cmd == "STATUS":
+            self.tell(self.morse_status())
+
+    def watch_paper(self):
+        """Read circled words with a webcam, if one is plugged in (looked for now and then: it may come later)."""
+        if self.paper or time.time() < self.camera_check:
+            return
+        self.camera_check = time.time() + 15
+        cam = hardware.find_camera(self.conf)
+        if cam:
+            self.paper = paper.Paper(cam, self.on_paper, log)
+            if not self.paper.start():
+                self.paper = None
+                self.camera_check = time.time() + 600
+
     def hold(self):
         """The button, held: finish any recording, then power off."""
         log("button held: shutting down")
@@ -788,6 +841,7 @@ class App:
     def tick(self):
         if self.shutdown_requested:
             return self.shut_down()
+        self.watch_paper()
         if not self.rec or self.rec.standby:
             self.conf = config.load(self.conf_path)
         dev_info = hardware.find_video(self.conf)
@@ -1145,7 +1199,7 @@ class App:
              "state": self.state, "message": self.message, "last": self.last_result,
              "light": "morse" if self.telling and time.time() < self.telling[1] else self.led.cur,
              "morse": self.telling[0] if self.telling and time.time() < self.telling[1] else None,
-             "codes": self.codes(), "bluetooth": self.beacon.now if self.beacon and self.beacon.on else None,
+             "codes": self.codes(), "note": (getattr(rec, "note_suffix", "") if rec and not rec.standby else self.next_note) or None, "bluetooth": self.beacon.now if self.beacon and self.beacon.on else None,
              "advice": self.advice(mfree), "masters_free_gb": mfree and round(mfree),
              "master_gb": self.f("MASTER_MIN_FREE_GB"), "profile": self.conf["PROFILE"],
              "device": self.dev and "%s (%s)" % (self.dev[2], self.dev[0]),
@@ -1209,5 +1263,7 @@ class App:
                 self.button.stop()
             if self.beacon:
                 self.beacon.stop()
+            if self.paper:
+                self.paper.stop()
             if not self.shutdown_requested:  # shutting down, the lights show it until the power goes
                 self.led.restore()

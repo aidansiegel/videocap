@@ -202,6 +202,22 @@ It's a broadcast only: nothing can connect to the station this way. `BLUETOOTH=n
 | E09 | Masters disk nearly full |
 | E10 | An upload or move failed |
 
+**Pen and paper (with a webcam):** plug a USB webcam into the station (found by itself, and never taken for the
+capture device; `CAMERA=/dev/videoN` to choose, `none` to turn off). Write a command word in capitals and circle it,
+then anything it needs after it, uncircled, and hold the sheet up to the webcam for a couple of seconds. Both lights
+flicker when it's read, then the green one says what it did in Morse.
+
+| On the paper | What it does |
+| --- | --- |
+| (NOTE) A | Puts `_A` on the end of the take's file names: the one recording, the one standing by, or else the next. Letters and digits, up to 12. (NOTE) on its own clears it |
+| (STOP) | Stops the recording (kept, held for review, like the button) |
+| (SAFE) | Makes the disks safe to unplug |
+| (STATUS) | Spells the status on the green light |
+
+It reads offline (numpy finds the sheet, the ink and the circle; Tesseract reads the words), looks closely only when
+the view changes and then holds still, and acts when two readings in a row agree. A thick dark marker on white paper
+reads best. The station works the same without a webcam.
+
 **Capture devices:** the ones with a profile in `videocap/profiles` are tested (so far the Hauppauge USB-Live2 Rev
 E1). Any other still records, with a note on the page about what might be off: it may not notice play (so standby can
 miss the start), the picture may comb on motion, or the sound may drift. [profiles.md](profiles.md) shows how to check

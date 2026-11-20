@@ -34,7 +34,7 @@ fi
 
 if [[ $apt == yes ]]; then
     apt-get update -q
-    DEBIAN_FRONTEND=noninteractive apt-get install -y -q python3 ffmpeg rclone v4l-utils alsa-utils avahi-daemon avahi-utils exfatprogs curl
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -q python3 ffmpeg rclone v4l-utils alsa-utils avahi-daemon avahi-utils exfatprogs tesseract-ocr python3-numpy curl
 fi
 for t in python3 ffmpeg ffprobe rclone v4l2-ctl cmp lsblk findmnt; do
     command -v "$t" >/dev/null || echo "warning: $t not found" >&2

@@ -203,6 +203,17 @@ class EndToEnd(unittest.TestCase):
         self.assertRegex(name, r"^20\d\d-\d\d-\d\d \d{4}( \(\d+\))?$")
         self.assertTrue(os.path.exists(os.path.join(self.card, "captures", name + ".log")))
 
+    def test_note_on_the_take_name(self):
+        """A note given while recording goes on the end of that take's file names, and not the next take's."""
+        self.wait_for("recording", lambda s: s["recording"])
+        self.assertEqual(self.post("note", b"a-1!"), 204)
+        self.assertEqual(self.status()["note"], "A1")
+        s = self.wait_for("the take finished", lambda s: s["uploads"])
+        name = s["uploads"][0]["name"]
+        self.assertTrue(name.endswith("_A1"), name)
+        self.assertTrue(os.path.exists(os.path.join(self.card, "captures", name + ".log")))
+        self.assertIsNone(self.status()["note"])  # used up
+
 
 if __name__ == "__main__":
     unittest.main()
